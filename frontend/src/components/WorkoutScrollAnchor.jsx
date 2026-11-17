@@ -53,6 +53,6 @@ export default class WorkoutScrollAnchor extends Component {
   }
 
   render() {
-    return <div ref={this.root} className="narrow" style={{ overflowAnchor: this.props.enabled ? 'none' : undefined }}>{this.props.children}</div>
+    return <div ref={this.root} className={this.props.className ? 'narrow ' + this.props.className : 'narrow'} style={{ overflowAnchor: this.props.enabled ? 'none' : undefined }}>{this.props.children}</div>
   }
 }

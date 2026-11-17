@@ -4737,3 +4737,49 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .rampsum .icn{flex:none;font-size:var(--fs-footnote);color:var(--label-2);transition:transform .15s}
 .rampsum[aria-expanded="true"] .icn{transform:rotate(180deg)}
 .lasthint{margin:-3px 0 3px;padding-inline-start:36px;font-size:var(--fs-caption);line-height:1.2;color:var(--label-2);font-variant-numeric:tabular-nums}
+
+/* ---- Gym mode (Settings → Workout → Gym mode, lib/gym-mode.js) ---- */
+/* Big buttons: the workout root carries .gym while Gym mode and its Big buttons switch are on, and
+   the page body carries .gym-big for the rest bar, which sits outside the workout root. Everything
+   is scoped under those, so Gym mode off leaves every layout as it was. The tick is a 56 px circle
+   with the tap area still wider, the steppers' buttons 52 px tall, set rows taller with more air. */
+.gym .setrow{gap:8px;padding:10px 0;min-height:76px}
+.gym .setrow+.setrow::before{inset-inline-start:36px}
+.gym .setrow .n{width:28px;height:28px;font-size:var(--fs-footnote);font-weight:600}
+.gym .setrow:not(.eff3):not(.timed) .stp.w{--num:calc(44px * var(--num-k));flex:1.25}
+.gym .setrow:not(.eff3):not(.timed) .stp.r{--num:calc(32px * var(--num-k))}
+.gym .sethead .n-sp{width:28px}
+.gym .sethead .ck-sp{width:56px}
+.gym .sethead{gap:8px}
+.gym .sethead:not(.eff3):not(.timed) .w-sp{--num:calc(44px * var(--num-k));flex:1.25}
+.gym .sethead:not(.eff3):not(.timed) .r-sp{--num:calc(32px * var(--num-k))}
+/* A row with an effort column (RIR or RPE on) has three cells to fit beside the big tick. */
+.gym .setrow.eff3,.gym .sethead.eff3{gap:4px}
+.gym .setrow.eff3 .n,.gym .sethead.eff3 .n-sp{width:24px;height:24px}
+.gym .setrow.eff3 .effcell,.gym .setrow.eff3 .effcell-stp,.gym .sethead.eff3 .eff-sp{min-width:44px}
+.gym .setrow.eff3 .stp.w,.gym .sethead.eff3 .w-sp{--num:calc(38px * var(--num-k))}
+.gym .setrow.eff3 .stp.r,.gym .sethead.eff3 .r-sp{--num:calc(28px * var(--num-k))}
+.gym .setrow.eff3 .stp button{width:22px}
+.gym .setrow .chk{width:56px;height:56px}
+.gym .setrow .chk .icn{font-size:var(--fs-title3)}
+.gym .setrow .chk::before{inset:-4px}
+.gym .setrow .stp button{width:36px;height:52px;min-height:52px}
+.gym .setrow .stp .num{font-size:min(var(--fs-title3), calc(20px * 1.12))}
+.gym .exname{font-size:var(--fs-title2) !important}
+.gym .wk-add{min-height:52px}
+.gym .wk-asplanned{font-weight:600}
+body.gym-big #timer .acts .btn{min-height:48px;min-width:48px}
+body.gym-big #timer .tclock{min-height:48px}
+/* Complete as planned sits beside Add set; give it room. */
+.wk-asplanned{margin-inline-end:8px}
+/* Rest bar, Show what's next: the next set on a line of its own under the clock and the buttons. */
+#timer.withnext{flex-wrap:wrap;row-gap:8px}
+#timer .restnext{flex:1 0 100%;min-width:0;font-size:var(--fs-subhead);font-weight:500;color:var(--label-2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#timer.withnext.ready .restnext{color:var(--acc-ink)}
+body.resting.gym-big #app{padding-bottom:calc(196px + var(--sab))}
+/* Screen-awake notice: the "Screen on" chip in the header and the one-time note under it. */
+.whdr-awake{display:flex;align-items:center;gap:3px;width:max-content;max-width:100%;margin:2px auto 0;padding:0 8px;border-radius:99px;font-size:var(--fs-caption);line-height:1.5;color:var(--green-ink,var(--green));background:var(--surface-2);background:color-mix(in srgb,var(--green) 14%,transparent);white-space:nowrap}
+.whdr-awake .icn,.whdr-awake svg{width:12px;height:12px;flex:none}
+.gym-awake-note{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:0 0 12px;border-radius:var(--r-card);font-size:var(--fs-footnote);line-height:1.35;background:var(--surface);background:color-mix(in srgb,var(--yellow) 14%,var(--surface))}
+.gym-awake-i{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:99px;background:var(--yellow);color:#000}
+.gym-awake-t{flex:1;min-width:0}

@@ -614,6 +614,35 @@ export default function Settings({ page = null, find = null, via = null, entryKe
     'gym-find': () => <GymFindPage />,
     'gym-edit': () => <GymEditPage />,
     workout: () => <>
+      {/* Gym mode (lib/gym-mode.js): the master switch and its four parts, on from the start in the
+          local build. The parts stay on screen, dimmed, while the master switch is off. */}
+      <Section footer={t('Built for training with your phone in your pocket: fewer taps, bigger buttons, and the next set always on screen.')}>
+        <Row icon="bolt" iconTint="var(--orange)" title={t('Gym mode')}
+          subtitle={t('Bigger buttons, one-tap sets and the next set always in view.')}>
+          <Switch aria-label={t('Gym mode')} checked={S.gymMode === true}
+            onChange={v => update(s => { s.gymMode = v })} />
+        </Row>
+        <Row icon="layout" iconTint="var(--blue)" title={t('Big buttons')}
+          subtitle={t('Larger tick buttons and steppers, and taller set rows.')}>
+          <Switch aria-label={t('Big buttons')} checked={S.gymOpts?.big !== false} disabled={S.gymMode !== true}
+            onChange={v => update(s => { s.gymOpts = { ...(s.gymOpts || {}), big: v } })} />
+        </Row>
+        <Row icon="check" iconTint="var(--green)" title={t('One-tap as planned')}
+          subtitle={t('A set left as planned is ticked with no question, and each exercise gets a Complete as planned button.')}>
+          <Switch aria-label={t('One-tap as planned')} checked={S.gymOpts?.asPlanned !== false} disabled={S.gymMode !== true}
+            onChange={v => update(s => { s.gymOpts = { ...(s.gymOpts || {}), asPlanned: v } })} />
+        </Row>
+        <Row icon="skipForward" iconTint="var(--teal)" title={t('Show what’s next')}
+          subtitle={t('The rest bar names the next set, and the next set scrolls into view.')}>
+          <Switch aria-label={t('Show what’s next')} checked={S.gymOpts?.next !== false} disabled={S.gymMode !== true}
+            onChange={v => update(s => { s.gymOpts = { ...(s.gymOpts || {}), next: v } })} />
+        </Row>
+        <Row icon="phoneScreen" iconTint="var(--yellow)" title={t('Screen-awake notice')}
+          subtitle={t('Says when the screen is kept on, and warns when your phone may lock it.')}>
+          <Switch aria-label={t('Screen-awake notice')} checked={S.gymOpts?.awake !== false} disabled={S.gymMode !== true}
+            onChange={v => update(s => { s.gymOpts = { ...(s.gymOpts || {}), awake: v } })} />
+        </Row>
+      </Section>
       {/* Warm-ups that build themselves from the work weight (#156, lib/warmup-ramp.js). Off by
           default, so nothing changes until someone asks; an exercise can still pick Auto, its own
           rows or none in its settings, and one with its own number of ramp sets keeps them. */}

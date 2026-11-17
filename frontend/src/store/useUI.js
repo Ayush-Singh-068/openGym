@@ -3,6 +3,7 @@ import { uid } from '../lib/format.js'
 import { beep, chime, vibrate, alertBuzz } from '../lib/sound.js'
 import { restSoundOf } from '../lib/rest-sounds.js'
 import { NEXT_KINDS, cueForRestEnd, playCueIf } from '../lib/cue-sounds.js'
+import { gymOpt } from '../lib/gym-mode.js'
 import { toneFor, REST_KINDS } from '../lib/user-sounds.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
@@ -285,7 +286,11 @@ const runRest = (set, get) => {
       if (!MOBILE) maybeRestNotification()
       cancelPushRestTimer()
       stopRestTicking()
-      set({ timer: { ...tm, left: 0, ready: true } })
+      // Gym mode (Screen-awake notice): a rest that ran out while the page was hidden or the phone locked is told once, by
+      // announceMissedRest, as soon as the page is on screen (now, or when it comes back).
+      const missed = !seenLive && gymOpt(st, 'awake') ? tm.endsAt : 0
+      set({ timer: { ...tm, left: 0, ready: true, ...(missed ? { missed } : {}) } })
+      if (missed) announceMissedRest()
       return
     }
     // 10 seconds left: one soft tick (lib/cue-sounds.js) in a rest longer than that, while the page
@@ -308,6 +313,21 @@ function restEndCue(st, tm) {
   return !!id && playCueIf(st, id)
 }
 
+// Gym mode: "Rest ended 12s ago", the end tone and one buzz, once, for a rest that ran out while the
+// page was hidden. The tick marks such a rest (timer.missed, the time it ended); this runs when the
+// page is on screen again, and takes the mark off, so a rest is announced once and no more.
+function announceMissedRest() {
+  const tm = useUI.getState().timer
+  if (!tm?.ready || !tm.missed || (typeof document !== 'undefined' && document.hidden)) return
+  const { missed, ...kept } = tm
+  useUI.setState({ timer: kept })
+  const st = useStore.getState().S
+  const sec = Math.max(1, Math.round((Date.now() - missed) / 1000))
+  useUI.getState().toast(t('Rest ended {0}s ago', sec))
+  if (!restEndCue(st, tm)) endTone(st.sound, toneFor(st, 'rest', tm.rk))
+  alertBuzz([200, 100, 200])
+}
+
 // The end of a rest or a hold, on screen. In the Android app the native side plays it, so music
 // ducks for it; anywhere else, or if that fails, the page's own chime.
 function endTone(enabled, kind, at = 0) {
@@ -321,6 +341,7 @@ export const useUI = create((set, get) => ({
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked, wide }
   toastMsg: '',
   toastAction: null,   // { label, run, id } while the toast offers an action (Undo)
+  awakeDismissed: false, // Gym mode: the "your phone may lock" note was closed (this visit only, never saved)
   swipeHint: null,     // { idx, i, id }: the set row showing the one-time swipe hint (Workout.jsx)
   setFlash: null,      // { idx, i, id }: the set row a copy or an undo just brought, flashed once
   timer: null,         // rest countdown between sets — { left, total, endsAt, forIdx, ready?, paused?, kind? }
@@ -373,6 +394,7 @@ export const useUI = create((set, get) => ({
     toastPaused = false
     set({ toastMsg: '', toastAction: null })
   },
+  dismissAwake() { set({ awakeDismissed: true }) },
   pauseToast() {
     if (!get().toastAction || toastPaused) return
     toastPaused = true
@@ -387,7 +409,9 @@ export const useUI = create((set, get) => ({
 
   // `rest`: what kind of rest this is (#165: 'warmup' | 'work' | 'superset' | 'exercise', from
   // lib/supersetFlow.js restKindAfter), kept on the timer as `rk` for the sound at its end.
-  startRest(sec, forIdx, { kind, forSet, rest, nextKind } = {}) {
+  startRest(sec, forIdx, { kind, forSet, rest, nextKind, next: nextText } = {}) {
+    // `next`: the line the rest bar shows under the clock in Gym mode ("Next: set 3 · 80 kg × 8",
+    // lib/gym-mode.js nextUpFor), kept on the timer as `next`.
     // `nextKind`: what follows this rest ('set' | 'exercise' | 'last' | 'superset', lib/cue-sounds.js
     // nextKindOf), kept on the timer for the cue at its end. Absent, the rest's own sound plays.
     tenCued = false
@@ -413,7 +437,7 @@ export const useUI = create((set, get) => ({
     // `autoNext`: the hold that counts in once this rest is over (lib/auto-holds.js), for the bar.
     const next = get().countIn ? null : autoPeek()
     get().stopCountIn()
-    set({ timer: { left: sec, total: sec, endsAt, forIdx, ...(forSet != null ? { forSet } : {}), ...(kind === 'switch' ? { kind } : {}), ...(kind !== 'switch' && REST_KINDS.includes(rest) ? { rk: rest } : {}), ...(kind !== 'switch' && NEXT_KINDS.includes(nextKind) ? { nextKind } : {}), ...(next ? { autoNext: next.label } : {}) } })
+    set({ timer: { left: sec, total: sec, endsAt, forIdx, ...(forSet != null ? { forSet } : {}), ...(kind === 'switch' ? { kind } : {}), ...(kind !== 'switch' && REST_KINDS.includes(rest) ? { rk: rest } : {}), ...(kind !== 'switch' && NEXT_KINDS.includes(nextKind) ? { nextKind } : {}), ...(kind !== 'switch' && typeof nextText === 'string' && nextText ? { next: nextText } : {}), ...(next ? { autoNext: next.label } : {}) } })
     bookRestEnd(endsAt, sec, kind)
     runRest(set, get)
     // Spoken cues: the next set, said as the rest begins (lib/spoken-cues.js).
@@ -450,7 +474,7 @@ export const useUI = create((set, get) => ({
   addRest(sec) {
     const tm = get().timer
     if (!tm) return
-    if (tm.ready) { if (sec > 0) get().startRest(Math.min(sec, REST_MAX), tm.forIdx, { forSet: tm.forSet, rest: tm.rk, nextKind: tm.nextKind }); else get().stopRest(); return }
+    if (tm.ready) { if (sec > 0) get().startRest(Math.min(sec, REST_MAX), tm.forIdx, { forSet: tm.forSet, rest: tm.rk, nextKind: tm.nextKind, next: tm.next }); else get().stopRest(); return }
     // +15 s stops where the wheel does (15:00), so the two never disagree about a rest's length.
     if (sec > 0) sec = Math.min(sec, Math.max(0, REST_MAX - tm.left))
     if (!sec) return
@@ -514,7 +538,7 @@ export const useUI = create((set, get) => ({
     const left = Math.max(1, Math.round((endsAt - now) / 1000))
     const tm = get().timer
     if (!tm || tm.ready) {
-      get().startRest(Math.min(left, REST_MAX), tm ? tm.forIdx : useStore.getState().S.active?.cur, tm ? { forSet: tm.forSet, rest: tm.rk, nextKind: tm.nextKind } : {})
+      get().startRest(Math.min(left, REST_MAX), tm ? tm.forIdx : useStore.getState().S.active?.cur, tm ? { forSet: tm.forSet, rest: tm.rk, nextKind: tm.nextKind, next: tm.next } : {})
       const t = get().timer
       if (!t) return
       set({ timer: { ...t, endsAt, left } })
@@ -826,7 +850,7 @@ const saveRest = tm => {
   if (!ss) return
   try {
     if (!tm || tm.ready) { savedRestKey = null; ss.removeItem(REST_KEY); return }
-    const v = { endsAt: tm.endsAt, total: tm.total, forIdx: tm.forIdx ?? null, forSet: tm.forSet ?? null, kind: tm.kind || null, ...(tm.rk ? { rk: tm.rk } : {}), ...(tm.nextKind ? { nextKind: tm.nextKind } : {}), paused: !!tm.paused, left: tm.left }
+    const v = { endsAt: tm.endsAt, total: tm.total, forIdx: tm.forIdx ?? null, forSet: tm.forSet ?? null, kind: tm.kind || null, ...(tm.rk ? { rk: tm.rk } : {}), ...(tm.nextKind ? { nextKind: tm.nextKind } : {}), ...(tm.next ? { next: tm.next } : {}), paused: !!tm.paused, left: tm.left }
     const key = JSON.stringify({ ...v, left: v.paused ? v.left : null })
     if (key === savedRestKey && ss.getItem(REST_KEY) !== null) return
     ss.setItem(REST_KEY, JSON.stringify(v))
@@ -841,7 +865,7 @@ export function restoreRest(now = Date.now()) {
   const total = Math.round(Number(saved.total))
   const ok = useStore.getState().S?.active && total > 0 && (saved.paused ? saved.left > 0 : saved.endsAt > now)
   if (!ok) { try { ss.removeItem(REST_KEY) } catch { /* nothing to drop */ } return false }
-  const base = { total, forIdx: saved.forIdx ?? undefined, ...(saved.forSet != null ? { forSet: saved.forSet } : {}), ...(saved.kind === 'switch' ? { kind: 'switch' } : {}), ...(REST_KINDS.includes(saved.rk) ? { rk: saved.rk } : {}), ...(NEXT_KINDS.includes(saved.nextKind) ? { nextKind: saved.nextKind } : {}) }
+  const base = { total, forIdx: saved.forIdx ?? undefined, ...(saved.forSet != null ? { forSet: saved.forSet } : {}), ...(saved.kind === 'switch' ? { kind: 'switch' } : {}), ...(REST_KINDS.includes(saved.rk) ? { rk: saved.rk } : {}), ...(NEXT_KINDS.includes(saved.nextKind) ? { nextKind: saved.nextKind } : {}), ...(typeof saved.next === 'string' && saved.next ? { next: saved.next } : {}) }
   if (saved.paused) {
     useUI.setState({ timer: { ...base, left: Math.round(saved.left), endsAt: saved.endsAt, paused: true } })
     if (MOBILE) holdRestAlert(Math.round(saved.left), total)
@@ -916,3 +940,6 @@ bindNativeRest(ev => {
 
 // Spoken cues read the profile (on or off, the rate, the running workout) from the store.
 bindCueState(() => useStore.getState?.()?.S)
+
+// Gym mode: a rest that ended while the page was hidden is announced when it is shown again.
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', announceMissedRest)

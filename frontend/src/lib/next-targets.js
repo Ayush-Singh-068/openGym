@@ -25,6 +25,16 @@ export function applyTrainerDefaults(S) {
     if (S.workoutView === 'cards' || S.workoutView == null) S.workoutView = 'list'
     changed = true
   }
+  // Gym mode, once per profile (gymModeV1): on, with spoken cues and the next exercise coming up by
+  // itself, which is what it is built around. A later switch-off in Settings is kept, because the
+  // flag makes this a no-op after the first run.
+  if (S.gymModeV1 !== true) {
+    S.gymModeV1 = true
+    S.gymMode = true
+    S.spokenCues = true
+    S.autoNextExercise = true
+    changed = true
+  }
   return changed
 }
 

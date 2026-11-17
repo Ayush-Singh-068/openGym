@@ -1,5 +1,24 @@
 // Polish UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  // --- Gym mode ---
+  "Gym mode": "Gym mode",
+  "Big buttons": "Big buttons",
+  "One-tap as planned": "One-tap as planned",
+  "Show what’s next": "Show what’s next",
+  "Screen-awake notice": "Screen-awake notice",
+  "Built for training with your phone in your pocket: fewer taps, bigger buttons, and the next set always on screen.": "Built for training with your phone in your pocket: fewer taps, bigger buttons, and the next set always on screen.",
+  "Bigger buttons, one-tap sets and the next set always in view.": "Bigger buttons, one-tap sets and the next set always in view.",
+  "Larger tick buttons and steppers, and taller set rows.": "Larger tick buttons and steppers, and taller set rows.",
+  "A set left as planned is ticked with no question, and each exercise gets a Complete as planned button.": "A set left as planned is ticked with no question, and each exercise gets a Complete as planned button.",
+  "The rest bar names the next set, and the next set scrolls into view.": "The rest bar names the next set, and the next set scrolls into view.",
+  "Says when the screen is kept on, and warns when your phone may lock it.": "Says when the screen is kept on, and warns when your phone may lock it.",
+  "Complete as planned": "Complete as planned",
+  "Sets done as planned: {0}": "Sets done as planned: {0}",
+  "Next: set {0} · {1}": "Next: set {0} · {1}",
+  "Next: {0} · {1}": "Next: {0} · {1}",
+  "Screen on": "Screen on",
+  "Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.": "Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.",
+  "Rest ended {0}s ago": "Rest ended {0}s ago",
   // --- Starting weights after loading a plan ---
   "What do you lift now?": "What do you lift now?",
   "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.": "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.",

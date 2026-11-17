@@ -84,6 +84,9 @@ import { exView, viewEntry, inEntryUnit, shownWeight } from '../lib/ex-unit.js'
 import { setTrendOn, setTrendsFor, trendGlyph, trendLabel } from '../lib/set-trend.js'
 import { formulaOf } from '../lib/onerm.js'
 import { cues } from '../lib/spoken-cues.js'
+import { nextKindOf, playCueIf } from '../lib/cue-sounds.js'
+import { gymOpt, nextUpFor, nextSetPos, asPlannedRows } from '../lib/gym-mode.js'
+import { useWakeLockStatus } from '../lib/wakelock.js'
 import { recordBaseline, entryRecords, recordHint, liveRecordsOn, recordHintsOn, recordSoundOn } from '../lib/set-records.js'
 import { RecordMark, RecordHintLine } from '../components/SetRecord.jsx'
 import { setNoteOf } from '../lib/set-notes.js'
@@ -207,7 +210,7 @@ function FoldNote({ text }) {
   </div>
 }
 
-function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onCompleteAll, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
   // The block reads the state as its exercise sees it (lib/ex-unit.js): in the exercise's own
   // weight unit when it has one (#657), so its rows, steppers, plates, owned weights, "last time"
   // and records all speak that unit. Every change goes through inEntryUnit or the parent's
@@ -939,7 +942,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   const tagMark = s => { const tag = setTagOf(s); return tag ? <span className="settag" style={{ '--tag': tag.color }} aria-hidden="true">{tag.shape}</span> : null }
   const failSay = (s, label) => { const tag = setTagOf(s); const l = isFailureSet(s) ? label + ', ' + t('Taken to failure') : label; return tag ? l + ', ' + setTagName(tag.id) : l }
   const plainRow = (s, i) => (
-    <div ref={el => onSetRowRef?.(i, el)} data-tour="set" className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '')}>
+    <div ref={el => onSetRowRef?.(i, el)} data-tour="set" data-set={i} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '')}>
       <button type="button" className="n" aria-label={inEx(trendSay(i, failSay(s, setSay(s, i))))} aria-describedby={optsId} title={t('More')} onClick={() => openSetMenu(s, i)}>{setNumOf(s, i)}{failMark(s)}{tagMark(s)}{trendMark(i)}</button>
       {/* Both words sit in the pill's one grid cell (::before/::after, hidden), so Left and
           Right are as wide as the longer of the two in every language and the inputs
@@ -984,7 +987,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     {!dense && !thumb && <Media ex={ex} notes={entry.target?.notes} key={entry.id} compact={compact} minimizable sayAs={exSay} />}
     <div className="row between exhd" style={{ marginBottom: 8 }}>
       {thumb && <WorkoutThumb ex={ex} dense={dense} sayAs={exSay} onExpand={dense ? () => exerciseDetailSheet(ex) : () => update(s => { s.gifSize = 'full' })} />}
-      <div style={{ flex: 1, minWidth: 0, fontSize: (compact || dense) ? 'var(--fs-body)' : 'var(--fs-title3)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.2 }} className={exerciseNameClass(ex)}>{exerciseNameFor(ex)}</div>
+      <div style={{ flex: 1, minWidth: 0, fontSize: (compact || dense) ? 'var(--fs-body)' : 'var(--fs-title3)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.2 }} className={(exerciseNameClass(ex) || '') + ' exname'}>{exerciseNameFor(ex)}</div>
       <div className="row" style={{ gap: 2, flex: 'none' }}>
         {entry.note && <button className="iconbtn" aria-label={inEx(t('Note'))} title={t('Note')} style={{ color: 'var(--acc-ink)' }}
           onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="note" /></button>}
@@ -1155,6 +1158,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
         </div>
       })}
       <div style={{ height: 8 }} />
+      {/* Gym mode, One-tap as planned: every open working set of this exercise, ticked at its planned numbers, with an Undo. */}
+      {onCompleteAll && <Button className="wk-add wk-asplanned" size="sm" icon="check" aria-label={several ? inEx(t('Complete as planned')) : undefined} onClick={onCompleteAll}>{t('Complete as planned')}</Button>}
       {wc.setShortcuts ? <div className="row" style={{ flexWrap: 'wrap' }}>
         <Button className="wk-add" size="sm" icon="sunrise" aria-label={several ? inEx(t('Add warm-up set')) : undefined} onClick={onAddWarmup}>{t('Add warm-up set')}</Button>
         <Button className="wk-add" size="sm" icon="minus" aria-label={several ? inEx(t('Remove set')) : undefined} disabled={entry.sets.length <= setSpanAt(entry.sets, entry.sets.length - 1)[1]} onClick={onRemoveSet}>{t('Remove set')}</Button>
@@ -1327,9 +1332,19 @@ function ActiveWorkout() {
   const workKey = useUI(s => s.work?.endsAt)
   const timerKey = useUI(s => s.timer && `${s.timer.endsAt}:${s.timer.forIdx ?? ''}`)
   const readyRestEnds = useUI(s => (s.timer?.ready ? s.timer.endsAt : undefined))
+  // Gym mode, Screen-awake notice: whether the screen is being kept on, and whether the "your phone
+  // may lock" note was closed (lib/wakelock.js, store/useUI.js).
+  const awakeLock = useWakeLockStatus()
+  const awakeDismissed = useUI(s => s.awakeDismissed)
   const A = S.active
   const editing = !!A.editingWorkoutId
   const paused = isPaused(A)
+  // Gym mode (lib/gym-mode.js): the chip in the header while the screen is really being kept on, and
+  // the note when it cannot be (Low Power Mode, a refused request) or was lost.
+  const gymAwake = gymOpt(S, 'awake') && !editing && !A.backfill
+  const awakeChip = gymAwake && awakeLock === 'held'
+    ? <span className="whdr-awake" title={t('Screen on')}><Icon name="phoneScreen" />{t('Screen on')}</span> : null
+  const awakeNote = gymAwake && !paused && awakeLock === 'problem' && !awakeDismissed
   // Paused here, by a reload of a paused workout or on another device (#976): the timers hold too.
   useEffect(() => { if (paused) useUI.getState().pauseAuto() }, [paused])
   // A past workout has no rest to time — the sets were done days ago. The work timer for
@@ -1392,7 +1407,7 @@ function ActiveWorkout() {
     const live = useStore.getState().S.active
     if (!live) return
     // #1017: with "Next exercise when the rest ends" on, weighted work moves on too.
-    const every = useStore.getState().S.autoNextExercise === true
+    const every = useStore.getState().S.autoNextExercise === true || gymOpt(useStore.getState().S, 'next')
     const timed = idx => every || modeOf({ ...(live.entries[idx]?.target || {}), id: live.entries[idx]?.id }) === 'time'
     const to = advanceAfterTimedRest(live.entries, supersetUnits(live.entries), readyRest.forIdx, live.cur, timed)
     if (to != null) update(s => { if (s.active && s.active.cur === live.cur) s.active.cur = to })
@@ -1412,6 +1427,13 @@ function ActiveWorkout() {
     return { len: A.entries.length, keys }
   })
   const wc = workoutControls(S)
+  // Gym mode, Big buttons: the workout root carries .gym (index.css), and the page body .gym-big for
+  // the rest bar, which lives outside the workout root.
+  const gymBig = gymOpt(S, 'big')
+  useEffect(() => {
+    document.body.classList.toggle('gym-big', gymBig)
+    return () => document.body.classList.remove('gym-big')
+  }, [gymBig])
   // Superset flow: center the actionable row when completing a set moves to the partner or
   // back to the first exercise of the next round. Entry-bound maps keep repeated exercise IDs
   // distinct, while each rendered set index identifies the existing row within that entry.
@@ -1627,6 +1649,30 @@ function ActiveWorkout() {
 
   const total = setUnitsTotal(A.entries)
   const done = setsDoneActive(A)
+  // Gym mode, Show what's next: after a tick, and when a rest ends, the next open set comes to the
+  // middle of the screen (smoothly, unless the phone asks for less motion). gymAhead holds the set
+  // just ticked (toggle sets it); the effect runs once the screen shows the tick.
+  const gymAhead = useRef(null)
+  const gymScrollNext = from => {
+    if (!from || !gymOpt(useStore.getState().S, 'next')) return
+    const next = nextSetPos(shown.current.entries, from.idx, from.i)
+    if (!next) return
+    const el = document.querySelector(`[data-exidx="${next.idx}"] .setrow[data-set="${next.i}"]`)
+    if (!el || typeof el.scrollIntoView !== 'function') return
+    const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView(still ? { block: 'center' } : { block: 'center', behavior: 'smooth' })
+  }
+  useEffect(() => {
+    const from = gymAhead.current
+    gymAhead.current = null
+    if (from && !editing) return afterScrollRestore(() => gymScrollNext(from))
+  }, [done])
+  useEffect(() => {
+    if (readyRestEnds === undefined || editing || !gymOpt(useStore.getState().S, 'next')) return
+    const rest = useUI.getState().timer
+    if (!rest?.ready || rest.forIdx == null || rest.forSet == null) return
+    return afterScrollRestore(() => gymScrollNext({ idx: rest.forIdx, i: rest.forSet }))
+  }, [readyRestEnds])
   // The volume so far (#774), in the header every layout shares. It shows from the first second
   // whenever the session holds something to weigh, so nothing moves when the first set is
   // ticked; runs, holds and bodyweight work alone have no tonnage to show.
@@ -1636,9 +1682,14 @@ function ActiveWorkout() {
   // An exercise with a unit of its own (#657) is changed in that unit, as it is shown and typed:
   // a weight from its row, a cascade, an added set or warm-up, the watch's numbers.
   const mutEntry = (idx, fn) => update(s => { inEntryUnit(s, idx, fn) }, true)
+  // Gym mode, One-tap as planned: the rows whose weight or reps were typed or stepped by hand in this
+  // workout. Those are checked at the tick (lib/typo-check.js); a row nobody touched is the plan, or
+  // what the app filled in, and is ticked with no question. A weight change carries to the rows below.
+  const handEdited = useRef(new Set())
   // Clearing an optional field drops the key rather than storing null, so a set only carries
   // what was actually logged — in the session, in history and in a backup.
   const setField = (idx, i, field, v) => mutEntry(idx, e => {
+    if (field === 'w' || field === 'r') for (let k = i; k < (field === 'w' ? e.sets.length : i + 1); k++) handEdited.current.add(A.id + ':' + idx + ':' + k)
     if (v == null) delete e.sets[i][field]; else e.sets[i][field] = v
     // Typing a duration IS the new plan, the same way ticking the row ends it: a plan a displaced
     // hold put aside must not outrank what you just typed, or the field would read 45 and the ▶
@@ -1841,6 +1892,7 @@ function ActiveWorkout() {
     onField: (i, f, v) => setField(idx, i, f, v),
     onMutateSet: (i, fn) => mutEntry(idx, entry => { entry.sets[i] = fn(entry.sets[i]) }),
     onAddSet: () => addSet(idx),
+    onCompleteAll: completeAllFor(idx),
     onRemoveSet: () => removeSet(idx),
     onAddWarmup: () => addWarmup(idx),
     onKeepWarmups: keepWarmupsFor(idx),
@@ -2275,7 +2327,9 @@ function ActiveWorkout() {
     // Spoken cues (Settings → Timer alerts → Voice): the style's line for a record, or a clip.
     cues.record()
   }
-  const toggle = (idx, i, side, { quiet = false, onFocusProgress } = {}) => {
+  const toggle = (idx, i, side, { quiet = false, noRest = false, onFocusProgress } = {}) => {
+    // Complete as planned ticks a run of sets with noRest, so the one rest comes after the last of them.
+    const begin = noRest ? () => {} : startRest
     // Ticking a set ends the typing in that row: drop the keyboard before the rest timer, the
     // effort sheet or the next exercise moves in. WebKit keeps the input focused across the
     // button tap, and a focused input with its keyboard gone is what leaves the tab bar
@@ -2315,7 +2369,7 @@ function ActiveWorkout() {
     }, true)
     if (editing) return
     if (checked && !quiet) cheerRecord(idx, i)
-    if (workoutDone) workoutCompleteSheet()
+    if (workoutDone) { playCueIf(useStore.getState().S, 'workoutDone'); workoutCompleteSheet() }
     else if (exJustDone && cardioEntry) useUI.getState().toast(t('Cardio logged'))
     else if (exJustDone && m === 'time') useUI.getState().toast(t('Hold logged'))
 
@@ -2338,6 +2392,8 @@ function ActiveWorkout() {
     if (fresh && checked && fresh.entries[idx]) {
       const progress = setProgressHighWater(fresh.entries[idx], progressHighWater.current[idx] || 0)
       progressHighWater.current[idx] = progress.highWater
+      // Gym mode: the next open set scrolls into view once the tick shows (gymScrollNext).
+      if (progress.isNew && !quiet && gymOpt(useStore.getState().S, 'next')) gymAhead.current = { idx, i }
 
       const freshUnits = supersetUnits(fresh.entries)
       const freshUnit = freshUnits.find(u => u.includes(idx))
@@ -2368,7 +2424,7 @@ function ActiveWorkout() {
       // still the rest you are in, held on purpose, and a re-check leaves it as it is.
       if (!progress.isNew) {
         const rest = useUI.getState().timer
-        if (restOnRecheck({ timerRunning: !!(rest && !rest.ready), unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) startRest(restAfter, idx, { forSet: i, rest: restKindAfter({ row: fresh.entries[idx].sets[i], unitDone: freshUnitDone, superset: (freshUnit?.length || 0) > 1 }) })
+        if (restOnRecheck({ timerRunning: !!(rest && !rest.ready), unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) begin(restAfter, idx, { forSet: i, rest: restKindAfter({ row: fresh.entries[idx].sets[i], unitDone: freshUnitDone, superset: (freshUnit?.length || 0) > 1 }), nextKind: nextKindOf(fresh.entries, idx, i), next: nextUpFor(useStore.getState().S, idx, i) })
         return
       }
 
@@ -2402,7 +2458,7 @@ function ActiveWorkout() {
       // stopRest() first so a rest that belongs after this set replaces the one that was running.
       if (freshUnitDone) stopRest()
       if (!freshUnit || freshUnit.length <= 1) {
-        if (restAfterSet({ unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) startRest(restAfter, idx, { forSet: i, rest: restKindAfter({ row: fresh.entries[idx].sets[i], unitDone: freshUnitDone }) })
+        if (restAfterSet({ unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) begin(restAfter, idx, { forSet: i, rest: restKindAfter({ row: fresh.entries[idx].sets[i], unitDone: freshUnitDone }), nextKind: nextKindOf(fresh.entries, idx, i), next: nextUpFor(useStore.getState().S, idx, i) })
         onFocusProgress?.({ unitDone: freshUnitDone })
         return
       }
@@ -2410,10 +2466,10 @@ function ActiveWorkout() {
       const step = supersetFlowStep(fresh.entries, freshUnit, idx)
       if (!step) { onFocusProgress?.({ unitDone: freshUnitDone }); return }
       if (step.unitDone) {
-        if (nextUnit?.length) startRest(restAfter, idx, { forSet: i, rest: 'exercise' })
+        if (nextUnit?.length) begin(restAfter, idx, { forSet: i, rest: 'exercise', nextKind: nextKindOf(fresh.entries, idx, i), next: nextUpFor(useStore.getState().S, idx, i) })
       } else {
         if (step.nextIdx != null) update(s => { if (s.active) s.active.cur = step.nextIdx })
-        if (step.roundDone) startRest(restAfter, idx, { forSet: i, rest: 'superset' })
+        if (step.roundDone) begin(restAfter, idx, { forSet: i, rest: 'superset', nextKind: nextKindOf(fresh.entries, idx, i), next: nextUpFor(useStore.getState().S, idx, i) })
       }
       onFocusProgress?.({ unitDone: freshUnitDone })
     }
@@ -2429,6 +2485,9 @@ function ActiveWorkout() {
     const e = st.active?.entries?.[idx]
     const row = side ? e?.sets?.[i]?.sides?.[side] : e?.sets?.[i]
     if (editing || !row || row.done || modeAt(idx) !== 'reps') return toggle(idx, i, side, opts)
+    // Gym mode, One-tap as planned: a set nobody edited in this workout is the plan (or what the app
+    // filled in), so it is ticked with no question. A number typed or stepped by hand still gets the check.
+    if (gymOpt(live, 'asPlanned') && !side && !handEdited.current.has(live.active.id + ':' + idx + ':' + i)) return toggle(idx, i, side, opts)
     const last = lastEntryFor(st, e.id, e.rid)
     const odd = oddValues(row, bestsFor(st.workouts, e.id), {
       unit: st.unit, assisted: isAssisted(e.id), last: lastRowFor(last?.sets, e.sets, i, side),
@@ -2445,6 +2504,33 @@ function ActiveWorkout() {
       cancelText: t('Log as typed'),
       onCancel: () => toggle(idx, i, side, opts),
     })
+  }
+  // Gym mode, Complete as planned: the handler for one exercise's button, or null where the button
+  // does not belong (Gym mode or the switch off, a saved workout being edited, a superset, a run,
+  // nothing left to tick). It ticks the open working sets one after the other through toggle,
+  // all but the last quietly and with no rest, so one rest starts, after the last, as a single tick
+  // would. The toast's Undo unticks the sets that are still ticked and ends that rest.
+  const completeAllFor = idx => {
+    const live = useStore.getState().S
+    const entry = live.active?.entries?.[idx]
+    if (!gymOpt(live, 'asPlanned') || editing || !entry || !['reps', 'time'].includes(modeAt(idx)) || unitOf(units, idx).length > 1) return null
+    if (!asPlannedRows(entry).length) return null
+    return () => {
+      const open = asPlannedRows(useStore.getState().S.active?.entries?.[idx])
+      if (!open.length) return
+      open.forEach((i, k) => toggle(idx, i, undefined, k === open.length - 1 ? {} : { quiet: true, noRest: true }))
+      useUI.getState().toast(t('Sets done as planned: {0}', open.length), {
+        action: t('Undo'),
+        ms: 5000,
+        onAction: () => {
+          const now = useStore.getState().S.active?.entries?.[idx]
+          const back = open.filter(i => now?.sets?.[i]?.done)
+          back.forEach(i => toggle(idx, i, undefined, { quiet: true, noRest: true }))
+          progressHighWater.current[idx] = Math.max(0, (progressHighWater.current[idx] || 0) - back.length)
+          useUI.getState().stopRest()
+        },
+      })
+    }
   }
   // The Apple Watch ticks sets through this same toggle (lib/watch-sync.js): the weight and reps it
   // logged go into the row first, then the tick runs as if tapped here (rest, high-water mark, the
@@ -2759,7 +2845,7 @@ function ActiveWorkout() {
     }
   }, [])
 
-  return <WorkoutScrollAnchor enabled={collapseOn} collapsed={[...collapsed].join(',')}>
+  return <WorkoutScrollAnchor enabled={collapseOn} collapsed={[...collapsed].join(',')} className={gymBig ? 'gym' : ''}>
     {/* In list mode the whole session scrolls under the header, so the header (name, clock,
         set counter, discard/finish, progress) stays pinned — the one thing you want in view
         while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
@@ -2774,7 +2860,7 @@ function ActiveWorkout() {
       {editing
         ? <button className="iconbtn" aria-label={t('Close editor')} title={t('Close editor')} onClick={() => exitWorkoutEdit()}><Icon name="xmark" /></button>
         : <button className="iconbtn" aria-label={t('Minimize')} title={t('Minimize')} onClick={() => nav('/home')}><Icon name="chevronDown" /></button>}
-      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <>{paused && <span className="whdr-paused">{t('Paused')} </span>}<Elapsed start={A.start} pausedAt={A.pausedAt} /></>} · {t('{0} sets', done + '/' + total)}{!(A.backfill || editing) && isOn(S, 'health') && <LiveHeartRate />}</div>{gymShown && (gymSwitchable
+      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <>{paused && <span className="whdr-paused">{t('Paused')} </span>}<Elapsed start={A.start} pausedAt={A.pausedAt} /></>} · {t('{0} sets', done + '/' + total)}{!(A.backfill || editing) && isOn(S, 'health') && <LiveHeartRate />}</div>{awakeChip}{gymShown && (gymSwitchable
         ? <button type="button" className="whdr-gym" onClick={openGymMenu} aria-label={t('Gym: {0}', gymShown)}><Icon name="house" />{gymShown}</button>
         : <span className="whdr-gym"><Icon name="house" />{gymShown}</span>)}</div>
       {!chipRow && sessionMap}
@@ -2799,6 +2885,12 @@ function ActiveWorkout() {
       <div className="wpause-m"><div className="wpause-t">{t('Workout paused')}</div>
         <div className="small muted">{t('The clock and the rest wait for you.')}</div></div>
       <Button variant="primary" size="sm" icon="play" onClick={togglePause} style={{ width: 'auto', flex: 'none' }}>{t('Resume')}</Button>
+    </div>}
+    {/* Gym mode: the screen could not be kept on, so the phone may lock between sets and rest sounds would not play. */}
+    {awakeNote && <div className="gym-awake-note" role="status">
+      <span className="gym-awake-i" aria-hidden="true"><Icon name="phoneScreen" /></span>
+      <span className="gym-awake-t">{t('Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.')}</span>
+      <button type="button" className="iconbtn" aria-label={t('Dismiss')} onClick={() => useUI.getState().dismissAwake()}><Icon name="xmark" /></button>
     </div>}
     {/* The live widget's card, as Settings > Workout > Live widget has it for "In the app". */}
     <LiveCard />

@@ -26,7 +26,7 @@ describe('applyTrainerDefaults', () => {
   it('moves a profile once: starts from last, and sets the flag', () => {
     const S = { startFrom: 'plan' }
     expect(applyTrainerDefaults(S)).toBe(true)
-    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true, layoutV2: true, workoutView: 'list' })
+    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true, layoutV2: true, workoutView: 'list', gymModeV1: true, gymMode: true, spokenCues: true, autoNextExercise: true })
   })
 
   it('a second call does nothing, so a later choice of plan is kept', () => {

@@ -155,6 +155,11 @@ export const SEARCH = [
     get kw() { return MODULE_KW[m.id] + (m.id === 'seasonal' ? ' ' + seasonKw() : '') + ' module turn on off hide' } })),
   { page: 'modules', title: 'Start from', icon: 'slider', tint: 'var(--blue)', kw: 'preset just training body everything custom modules' },
   // Workout
+  { page: 'workout', title: 'Gym mode', icon: 'bolt', tint: 'var(--orange)', kw: 'gym mode phone pocket fewer taps hands free workout big buttons one tap as planned next set screen awake' },
+  { page: 'workout', title: 'Big buttons', icon: 'layout', tint: 'var(--blue)', kw: 'gym mode big large bigger buttons tick steppers tap target sweaty hands' },
+  { page: 'workout', title: 'One-tap as planned', icon: 'check', tint: 'var(--green)', kw: 'gym mode one tap complete as planned tick typo question confirm all sets' },
+  { page: 'workout', title: 'Show what’s next', icon: 'skipForward', tint: 'var(--teal)', kw: 'gym mode next set what is next rest bar scroll advance exercise' },
+  { page: 'workout', title: 'Screen-awake notice', icon: 'phoneScreen', tint: 'var(--yellow)', kw: 'gym mode screen on awake lock sleep low power mode warning notice' },
   { page: 'workout', title: 'Automatic warm-ups', icon: 'sunrise', tint: 'var(--orange)', mod: 'plates', kw: 'warm-up warmup ramp automatic generator compounds' },
   { page: 'workout', title: 'Rest timer', icon: 'timer', tint: 'var(--orange)', kw: 'rest pause break seconds minutes timer countdown' },
   { page: 'workout', title: 'Rest-pause rest', icon: 'bolt', tint: 'var(--orange)', kw: 'burst cluster rest pause' },
