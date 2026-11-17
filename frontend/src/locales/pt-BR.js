@@ -4,6 +4,9 @@
 import pt from './pt.js'
 
 export const PT_BR_OVERRIDES = {
+  // --- The calm List card ---
+  "Working weight": "Working weight",
+  "Save and complete": "Save and complete",
   // --- Gym mode ---
   "Gym mode": "Gym mode",
   "Big buttons": "Big buttons",

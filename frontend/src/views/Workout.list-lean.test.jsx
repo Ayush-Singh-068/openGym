@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-// Package A: the list layout is lean. The warm-up ramp folds into ONE summary line that opens its
-// rungs on a tap, the per-rung captions and the "Working sets" divider stay out of List and
-// Compact (Cards keeps them), and each work set carries last time's result as a small hint.
+// Package A: the lean layouts. The warm-up ramp folds into ONE summary line that opens its rungs on
+// a tap, the per-rung captions and the "Working sets" divider stay out (Cards keeps them), and each
+// work set carries last time's result as a small hint. That is the Compact layout now; the List
+// layout is the calm card, whose ramp is one quieter "Warm-up · 4 sets" row (last describe below).
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
@@ -55,9 +56,9 @@ function mount({ view = 'list', known = true, rungsDone = false, history = true 
 
 const tap = el => act(() => { el.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
 
-describe('list layout: the ramp is one line', () => {
+describe('compact layout: the ramp is one line', () => {
   it('shows exactly one ramp summary line with the weights, and no rung rows, captions or divider', () => {
-    mount()
+    mount({ view: 'compact' })
     const sums = container.querySelectorAll('.rampsum')
     expect(sums).toHaveLength(1)
     expect(plain(sums[0].querySelector('.rampsum-t').textContent)).toBe('Ramp-up · bar×10 · 32×6-8 · 48×4-5 · 64×2-3')
@@ -70,12 +71,12 @@ describe('list layout: the ramp is one line', () => {
   })
 
   it('shows percents in place of weights when no working weight is known yet', () => {
-    mount({ known: false })
+    mount({ view: 'compact', known: false })
     expect(plain(container.querySelector('.rampsum-t').textContent)).toBe('Ramp-up · bar×10 · 40%×6-8 · 60%×4-5 · 80%×2-3')
   })
 
   it('a tap opens the rungs as tickable rows, a second tap folds them again', () => {
-    mount()
+    mount({ view: 'compact' })
     tap(container.querySelector('.rampsum'))
     expect(container.querySelector('.rampsum').getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('.setrow')).toHaveLength(7)
@@ -86,7 +87,7 @@ describe('list layout: the ramp is one line', () => {
   })
 
   it('starts open when a rung is already ticked', () => {
-    mount({ rungsDone: true })
+    mount({ view: 'compact', rungsDone: true })
     expect(container.querySelector('.rampsum').getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('.setrow')).toHaveLength(7)
   })
@@ -109,21 +110,65 @@ describe('list layout: the ramp is one line', () => {
   })
 })
 
-describe('list layout: last time under each work set', () => {
+describe('compact layout: last time under each work set', () => {
   it('shows what the same set did last time, one hint per work set', () => {
-    mount()
+    mount({ view: 'compact' })
     const hints = [...container.querySelectorAll('.lasthint')].map(h => plain(h.textContent))
     expect(hints).toEqual(['last 20×8', 'last 22.5×8', 'last 25×6'])
   })
 
   it('shows no hint when there is no history', () => {
-    mount({ history: false })
+    mount({ view: 'compact', history: false })
     expect(container.querySelectorAll('.lasthint')).toHaveLength(0)
   })
 
   it('puts no hint under an opened ramp rung', () => {
-    mount()
+    mount({ view: 'compact' })
     tap(container.querySelector('.rampsum'))
     expect(container.querySelectorAll('.lasthint')).toHaveLength(3)
+  })
+})
+
+describe('list layout: the ramp is one calm row', () => {
+  const warmRow = () => [...container.querySelectorAll('.calm-fold')].find(b => b.textContent.startsWith('Warm-up'))
+  const weights = () => [...container.querySelectorAll('.setrow')].map(r => r.querySelector('.stp.w input'))
+
+  it('shows one closed "Warm-up · 4 sets" row and only the work sets as rows', () => {
+    mount()
+    expect(container.querySelectorAll('.rampsum')).toHaveLength(0)
+    expect(warmRow().textContent).toBe('Warm-up · 4 sets')
+    expect(warmRow().getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelectorAll('.setrow')).toHaveLength(3)
+    expect(container.querySelectorAll('.rampcap')).toHaveLength(0)
+    expect(container.textContent).not.toContain('Working sets')
+  })
+
+  it('a tap opens the rungs as tickable rows with their kilos, a second tap folds them again', () => {
+    mount()
+    tap(warmRow())
+    expect(warmRow().getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelectorAll('.setrow')).toHaveLength(7)
+    expect(weights().map(i => i.value)).toEqual(['20', '32', '48', '64', '80', '80', '80'])
+    tap(warmRow())
+    expect(container.querySelectorAll('.setrow')).toHaveLength(3)
+  })
+
+  it('a rung shows its share of the working weight in place of a 0 until the weight is known', () => {
+    mount({ known: false })
+    tap(warmRow())
+    expect(weights().slice(0, 4).map(i => [i.value, i.placeholder])).toEqual([['', 'bar'], ['', '40%'], ['', '60%'], ['', '80%']])
+  })
+
+  it('starts open when a rung is already ticked', () => {
+    mount({ rungsDone: true })
+    expect(warmRow().getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelectorAll('.setrow')).toHaveLength(7)
+  })
+
+  it('puts no last-time hint under the rows: it is in Details', () => {
+    mount()
+    expect(container.querySelectorAll('.lasthint')).toHaveLength(0)
+    tap([...container.querySelectorAll('.calm-fold')].find(b => b.textContent === 'Details'))
+    expect(container.querySelector('.refline').textContent).toContain('Last time')
   })
 })

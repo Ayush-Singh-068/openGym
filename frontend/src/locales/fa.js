@@ -1,5 +1,8 @@
 // Persian UI strings. Keys are the English source strings.
 export default {
+  // --- The calm List card ---
+  "Working weight": "Working weight",
+  "Save and complete": "Save and complete",
   // --- Gym mode ---
   "Gym mode": "Gym mode",
   "Big buttons": "Big buttons",

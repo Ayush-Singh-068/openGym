@@ -30,6 +30,8 @@ function mount(sets, target = { mode: 'reps', sets: 2, reps: 8, tempo: '3-1-1-0'
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => root.render(<MemoryRouter><Workout /></MemoryRouter>))
+  // The List layout keeps the tempo tag under its Details row: open it.
+  act(() => [...container.querySelectorAll('.calm-fold')].find(b => b.textContent.trim() === 'Details')?.click())
 }
 const renderTop = () => {
   const sheet = useUI.getState().sheets.at(-1)

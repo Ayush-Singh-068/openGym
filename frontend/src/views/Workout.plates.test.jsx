@@ -55,7 +55,9 @@ function mount(entries, patch = {}) {
   act(() => root.render(<MemoryRouter><Workout /></MemoryRouter>))
 }
 
-const lines = () => [...container.querySelectorAll('.plateline')].map(el => ({
+// The List layout keeps the plates under its Details row: open it first.
+const openDetails = () => { container.querySelectorAll('.calm-fold[aria-expanded="false"]').forEach(b => { if (b.textContent.trim() === 'Details') act(() => b.click()) }); return [] }
+const lines = () => openDetails().concat([...container.querySelectorAll('.plateline')]).map(el => ({
   text: el.querySelector('span').textContent,
   moves: el.querySelector('.moves')?.textContent ?? null,
 }))
@@ -136,7 +138,8 @@ describe('plate line under set rows', () => {
 
   it('a drop set is a weight change too: its line sits under the drop row and the next set restacks', () => {
     const dropped = { w: 145, r: 6, done: false, type: 'dropset', drops: [{ w: 115, r: 8 }] }
-    mount([entry(SQUAT, [dropped, work(145)], { w: 145 })])
+    // In Cards, where the lines sit under their rows (the List keeps them under Details).
+    mount([entry(SQUAT, [dropped, work(145)], { w: 145 })], { workoutView: 'cards' })
     expect(lines()).toEqual([
       { text: '45 + 5 per side on a 45 lb bar', moves: null },
       { text: '35 per side', moves: '−45 −5 +35' },

@@ -35,6 +35,7 @@ import { circuitLine } from '../lib/circuit-copy.js'
 import CircuitCard from '../components/CircuitCard.jsx'
 import { useCircuit } from '../store/useCircuit.js'
 import WorkoutThumb, { hasWorkoutMedia } from '../components/WorkoutThumb.jsx'
+import WorkingWeightSheet from '../components/WorkingWeightSheet.jsx'
 import { workoutSettingsSheet } from '../components/WorkoutSettingsSheet.jsx'
 import { SessionMapButton } from '../components/SessionMuscles.jsx'
 import { durationSheet } from '../components/DurationWheel.jsx'
@@ -85,7 +86,7 @@ import { setTrendOn, setTrendsFor, trendGlyph, trendLabel } from '../lib/set-tre
 import { formulaOf } from '../lib/onerm.js'
 import { cues } from '../lib/spoken-cues.js'
 import { nextKindOf, playCueIf } from '../lib/cue-sounds.js'
-import { gymOpt, nextUpFor, nextSetPos, asPlannedRows } from '../lib/gym-mode.js'
+import { gymOpt, nextUpFor, nextSetPos, asPlannedRows, exerciseTargetLine, needsWorkingWeight, withWorkingWeight } from '../lib/gym-mode.js'
 import { useWakeLockStatus } from '../lib/wakelock.js'
 import { recordBaseline, entryRecords, recordHint, liveRecordsOn, recordHintsOn, recordSoundOn } from '../lib/set-records.js'
 import { RecordMark, RecordHintLine } from '../components/SetRecord.jsx'
@@ -210,7 +211,7 @@ function FoldNote({ text }) {
   </div>
 }
 
-function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onCompleteAll, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onCompleteAll, onSetCurrent, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
   // The block reads the state as its exercise sees it (lib/ex-unit.js): in the exercise's own
   // weight unit when it has one (#657), so its rows, steppers, plates, owned weights, "last time"
   // and records all speak that unit. Every change goes through inEntryUnit or the parent's
@@ -232,6 +233,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   // The lean layouts (List, Compact) fold the warm-up ramp into one line. null means "not chosen
   // yet": the ramp then starts open only when one of its rungs is already ticked.
   const [rampPick, setRampPick] = useState(null)
+  // The calm List card folds everything but the sets under one "Details" row.
+  const [detailsOpen, setDetailsOpen] = useState(false)
   // Drops/bursts mutate the row in place — same card, not a new set with its own long rest.
   // A planned exercise (see the exercise's "Intensifier" config) arrives with these already
   // filled in by applyIntensifierPlan; these only add/edit/remove entries live from here on.
@@ -535,10 +538,13 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   // workout → Workout controls). The lean default keeps the sets and one "more" button; each
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
+  // The calm card: a warm-up rung with no weight yet shows its share of the working weight ("40%") in
+  // place of a 0, and the kg once the working weight is known.
+  const rungHint = (s, col) => (calm && col.f === 'w' && isWarmupRow(s) && isRungRow(s) && !(Number(valueOf(col, s)) > 0) ? (s.wb ? t('bar') : s.wp === 0 ? t('BW') : s.wp + '%') : null)
   const cell = (s, i, col, cls) => (
     <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} role="group" aria-label={inSet(s, i, col.hd)}>
       {wc.steppers && <button aria-label={inSet(s, i, nameIn(col.hd, t('Decrease')))} onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={viewOf(col, valueOf(col, s)) ?? ''} aria-label={inSet(s, i, col.hd)}
+      <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={rungHint(s, col) ? '' : viewOf(col, valueOf(col, s)) ?? ''} placeholder={rungHint(s, col) || undefined} aria-label={inSet(s, i, col.hd)}
         onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} /></span>
       {wc.steppers && <button aria-label={inSet(s, i, nameIn(col.hd, t('Increase')))} onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
     </div>
@@ -626,6 +632,9 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     titleClass: exerciseNameClass(ex),
     sections: [
       { items: [
+        // The calm List card has no button for these: they live here.
+        calm && onCompleteAll && { icon: 'checkCircle', label: t('Complete as planned'), onClick: onCompleteAll },
+        calm && onSetCurrent && { icon: 'pin', label: t('Set current'), onClick: onSetCurrent },
         { icon: 'note', label: entry.note ? t('Edit note') : t('Add note'), sub: entry.note || undefined, onClick: () => exerciseNoteSheet(entryIdx) },
         onSwap && { icon: 'swap', label: t('Swap exercise'), onClick: onSwap, disabled: busy },
         // The slot's planned backups (#649), one tap each: the machine is taken, the plan says what next.
@@ -691,6 +700,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   // opens the rungs as tickable rows. The weight shows in place of the percent once it is known.
   // The rungs stay in the entry, so ticking, rests and the saved workout work exactly as before.
   const leanOn = !!lean && !editing
+  // The calm List card: lean, and not the Compact layout (index.css .card-calm).
+  const calm = leanOn && !dense
   const rungRows = leanOn ? entry.sets.filter(x => isWarmupRow(x) && isRungRow(x)) : []
   const rampOpen = rampPick ?? rungRows.some(x => x.done === true)
   const rungText = x => {
@@ -700,7 +711,14 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     return head + '×' + reps
   }
   const rampText = t('Ramp-up') + ' · ' + rungRows.map(rungText).join(' · ')
-  const rampSummary = rungRows.length ? <button type="button" className="rampsum" aria-expanded={rampOpen}
+  // The calm card's ramp is a quieter row: "Warm-up · 4 sets", the rungs open under it.
+  const calmWarmText = t('Warm-up') + ' · ' + tn('{0} set', '{0} sets', rungRows.length)
+  const calmWarm = rungRows.length ? <button type="button" className="calm-fold" aria-expanded={rampOpen}
+    aria-label={inEx(calmWarmText)} onClick={() => setRampPick(!rampOpen)}>
+    <span>{calmWarmText}</span>
+    <Icon name="chevronDown" />
+  </button> : null
+  const rampSummary = calm ? calmWarm : rungRows.length ? <button type="button" className="rampsum" aria-expanded={rampOpen}
     aria-label={inEx(rampText)} onClick={() => setRampPick(!rampOpen)}>
     {/* Each part keeps together, so a long ramp wraps between rungs and never inside one. */}
     <span className="rampsum-t">{[t('Ramp-up'), ...rungRows.map(rungText)].map((p, i) => <Fragment key={i}>{i ? ' ' : ''}<span className="rampsum-p">{i ? '· ' : ''}{p}</span></Fragment>)}</span>
@@ -942,7 +960,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   const tagMark = s => { const tag = setTagOf(s); return tag ? <span className="settag" style={{ '--tag': tag.color }} aria-hidden="true">{tag.shape}</span> : null }
   const failSay = (s, label) => { const tag = setTagOf(s); const l = isFailureSet(s) ? label + ', ' + t('Taken to failure') : label; return tag ? l + ', ' + setTagName(tag.id) : l }
   const plainRow = (s, i) => (
-    <div ref={el => onSetRowRef?.(i, el)} data-tour="set" data-set={i} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '')}>
+    <div ref={el => onSetRowRef?.(i, el)} data-tour="set" data-set={i} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '') + (calm && isWarmupRow(s) ? ' ramp' : '')}>
       <button type="button" className="n" aria-label={inEx(trendSay(i, failSay(s, setSay(s, i))))} aria-describedby={optsId} title={t('More')} onClick={() => openSetMenu(s, i)}>{setNumOf(s, i)}{failMark(s)}{tagMark(s)}{trendMark(i)}</button>
       {/* Both words sit in the pill's one grid cell (::before/::after, hidden), so Left and
           Right are as wide as the longer of the two in every language and the inputs
@@ -981,11 +999,26 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
       {row}
     </SwipeRow>
   }
-  return <>
+  // The calm List card's header: a small picture, the name, one muted line ("4 × 5–6 · 60 kg") and
+  // the ⋯ menu. The picture opens How to do it.
+  const calmThumb = S.gifSize !== 'off' && hasWorkoutMedia(ex)
+  const calmHeader = calm ? <div className="calm-hd">
+    {calmThumb && <WorkoutThumb ex={ex} dense sayAs={exSay} onExpand={() => exerciseDetailSheet(ex)} />}
+    <div className="calm-ti">
+      <div className={(exerciseNameClass(ex) || '') + ' exname calm-name'}>{exerciseNameFor(ex)}</div>
+      <div className="calm-sub">{exerciseTargetLine(entry, S.unit, speedUnit)}</div>
+    </div>
+    <div className="row calm-acts">
+      {entry.note && <button className="iconbtn" aria-label={inEx(t('Note'))} title={t('Note')} style={{ color: 'var(--acc-ink)' }}
+        onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="note" /></button>}
+      <button className="iconbtn" aria-label={inEx(t('More'))} title={t('More')} onClick={openMore}><Icon name="more" /></button>
+    </div>
+  </div> : null
+  const exHead = <>
     {/* Animations set to Small: a thumbnail beside the name instead of a strip above it, so the
         first set is on screen without scrolling; a tap brings the full animation back. */}
-    {!dense && !thumb && <Media ex={ex} notes={entry.target?.notes} key={entry.id} compact={compact} minimizable sayAs={exSay} />}
-    <div className="row between exhd" style={{ marginBottom: 8 }}>
+    {!dense && !thumb && !calm && <Media ex={ex} notes={entry.target?.notes} key={entry.id} compact={compact} minimizable sayAs={exSay} />}
+    {calm ? calmHeader : <div className="row between exhd" style={{ marginBottom: 8 }}>
       {thumb && <WorkoutThumb ex={ex} dense={dense} sayAs={exSay} onExpand={dense ? () => exerciseDetailSheet(ex) : () => update(s => { s.gifSize = 'full' })} />}
       <div style={{ flex: 1, minWidth: 0, fontSize: (compact || dense) ? 'var(--fs-body)' : 'var(--fs-title3)', fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.2 }} className={(exerciseNameClass(ex) || '') + ' exname'}>{exerciseNameFor(ex)}</div>
       <div className="row" style={{ gap: 2, flex: 'none' }}>
@@ -993,7 +1026,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
           onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="note" /></button>}
         <button className="iconbtn" aria-label={inEx(t('More'))} title={t('More')} onClick={openMore}><Icon name="more" /></button>
       </div>
-    </div>
+    </div>}
     {/* Kept out of progression: by hand for this session (the ⋯ menu, with its undo right here),
         or by a deload or rehab routine, which owns that choice and offers no undo. On in every
         view, compact included: it changes what the next session is built from. */}
@@ -1009,7 +1042,11 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     </div>}
     {/* compact view drops everything from here to the sets card — it is all still on the ⋯ menu
         (note, details, history, bar weight, progression) or is display-only (tags, "last time"). */}
-    {!dense && <>
+  </>
+  // Everything about the exercise that is not a set: tags, notes, the plan and last time, the
+  // progression line. Above the sets in every layout but the calm List card, which folds it all
+  // under its Details row.
+  const exFacts = <>
     <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
       {cardio && <span className="tag acc"><Icon name="figureRun" />{t('Cardio')}</span>}
       {/* A unilateral exercise is logged per side directly (the L/R rows below for reps, a
@@ -1039,7 +1076,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     {/* Rows set for this one workout by a coach or planner (#972, lib/session-targets.js). */}
     {entry.sessionTarget && <div className="exnote" style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><Icon name="calendar" style={{ fontSize: 'var(--fs-footnote)', flex: 'none', transform: 'translateY(1px)' }} />
       <span>{entry.sessionTarget.by ? t('Today’s rows come from {0}. Your routine stays as it is.', entry.sessionTarget.by) : t('Today’s rows were planned for this day. Your routine stays as it is.')}</span></div>}
-    {planLine}
+    {!calm && planLine}
     {refLine}
     {guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={inEx(t('Open exercise settings'))} onClick={onProgressionSettings}>
@@ -1048,8 +1085,23 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     </button>}
     {/* The skill ladder (lib/ladders.js): the next rung, and one tap to put it in the routine. */}
     {plan?.kind === 'ladder' && plan.next && EXIDX[plan.next] && <LadderNext entry={entry} next={plan.next} />}
-    </>}
-    <div className="card" style={{ marginTop: 12, marginBottom: 0 }}>
+  </>
+  // The calm card's last row: Details, closed until tapped. Open, it shows the facts above and the
+  // plates each set loads.
+  const calmDetails = calm ? <>
+    <button type="button" className="calm-fold" aria-expanded={detailsOpen} aria-label={inEx(t('Details'))} onClick={() => setDetailsOpen(o => !o)}>
+      <span>{t('Details')}</span>
+      <Icon name="chevronDown" />
+    </button>
+    {detailsOpen && <div className="calm-details">
+      {exFacts}
+      {loadSeq.map(x => <Fragment key={x.key}>{loadLine(x.key)}</Fragment>)}
+    </div>}
+  </> : null
+  return <>
+    {exHead}
+    {!dense && !calm && exFacts}
+    <div className={'card' + (calm ? ' calm-sets' : '')} style={{ marginTop: 12, marginBottom: 0 }}>
       {/* the header carries the same eff3/timed sizing as the rows, or the labels drift off their
           columns; over L/R rows it also has to skip the side badge that sits in front of the weight cell */}
       <div className={'sethead' + (col3 ? ' eff3' : '') + (timed ? ' timed' : '') + (perSide ? ' per-side' : '') + (wc.steppers ? '' : ' plain')}><span className="n-sp" /><span className="w-sp">{col1.hd}</span>{col2 && <span className={col2.dec ? 'r-sp dec' : 'r-sp'}>{cardio && !editing
@@ -1074,7 +1126,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
           {isFirstWarmup && (isRungRow(s)
             ? (leanOn ? rampSummary : <div className="setph ramp"><span>{t('Ramp-up')}</span><span className="setph-cap">{t('Rest') + ' ' + fmtRest(setRestDefault(i))}</span></div>)
             : <div className="setph">{t('Warm-up')}</div>)}
-          {!warm && warmBefore && (isRungRow(entry.sets[i - 1]) ? (leanOn ? null : <div className="setph ramp"><span>{t('Working sets')}</span></div>) : <div className="setsep" />)}
+          {!warm && warmBefore && (isRungRow(entry.sets[i - 1]) ? (calm ? <div className="setsep" /> : leanOn ? null : <div className="setph ramp"><span>{t('Working sets')}</span></div>) : <div className="setsep" />)}
           {/* A pyramid's Max set: the reps are what you managed, not a number to hit. */}
           {/* With the record to beat at this set's weight or heavier, from before this session. */}
           {!warm && s.max && <div className="setph">{t('Max: as many reps as you can')}{(() => {
@@ -1106,9 +1158,9 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
               <Icon name="swap" /><span>{t('Psst: swipe a set. Left deletes, right copies.')}</span><Icon name="xmark" />
             </button>
           </div>}
-          {loadLine(String(i))}
+          {!calm && loadLine(String(i))}
           {/* Lean layouts: what this same work set did last time, a small muted line under the row. */}
-          {leanOn && !warm && !pairHead && !pairTail && !isSideSet(s) && (() => {
+          {leanOn && !calm && !warm && !pairHead && !pairTail && !isSideSet(s) && (() => {
             const prev = last?.sets?.[phaseNum - 1]
             return prev ? <div className="lasthint">{t('last {0}', setLabel(entry.id, prev, last.target, speedUnitOf(S)))}</div> : null
           })()}
@@ -1141,7 +1193,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
                 {miniStepper(d.r, 1, false, v => setDropField(i, di, 'r', v), false, x => subSay(s, i, t('Drop {0}', di + 1), nameIn(col2?.hd, x)))}
                 <button className="iconbtn" aria-label={subSay(s, i, t('Drop {0}', di + 1), t('Remove'))} onClick={() => removeDrop(i, di)}><Icon name="xmark" /></button>
               </div>
-            )).flatMap((el, di) => [el, <Fragment key={'dl' + di}>{loadLine(i + ':d' + di)}</Fragment>])}
+            )).flatMap((el, di) => [el, <Fragment key={'dl' + di}>{!calm && loadLine(i + ':d' + di)}</Fragment>])}
             {clustersOf(s).map((c, ci) => (
               <div className={'subrow' + (s.done ? ' done' : '')} key={'c' + ci}>
                 <span className="subn">{isClusterSet(s) ? t('Mini-set {0}', ci + 1) : t('Burst {0}', ci + 1)}</span>
@@ -1157,6 +1209,13 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
           </>}
         </div>
       })}
+      {calm ? <div className="calm-foot">
+        {/* Add set stays where it is: nothing else in the card appears or goes away beside it (a set must never be added by a tap meant for something that just moved). */}
+        <button type="button" className="calm-txt" aria-label={several ? inEx(t('Add set')) : undefined} onClick={onAddSet}><Icon name="plus" />{t('Add set')}</button>
+        {wc.setShortcuts && <button type="button" className="calm-txt" aria-label={several ? inEx(t('Add warm-up set')) : undefined} onClick={onAddWarmup}><Icon name="sunrise" />{t('Add warm-up set')}</button>}
+        {wc.setShortcuts && <button type="button" className="calm-txt" aria-label={several ? inEx(t('Remove set')) : undefined}
+          disabled={entry.sets.length <= setSpanAt(entry.sets, entry.sets.length - 1)[1]} onClick={onRemoveSet}><Icon name="minus" />{t('Remove set')}</button>}
+      </div> : <>
       <div style={{ height: 8 }} />
       {/* Gym mode, One-tap as planned: every open working set of this exercise, ticked at its planned numbers, with an Undo. */}
       {onCompleteAll && <Button className="wk-add wk-asplanned" size="sm" icon="check" aria-label={several ? inEx(t('Complete as planned')) : undefined} onClick={onCompleteAll}>{t('Complete as planned')}</Button>}
@@ -1165,7 +1224,9 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
         <Button className="wk-add" size="sm" icon="minus" aria-label={several ? inEx(t('Remove set')) : undefined} disabled={entry.sets.length <= setSpanAt(entry.sets, entry.sets.length - 1)[1]} onClick={onRemoveSet}>{t('Remove set')}</Button>
         <Button className="wk-add" size="sm" icon="plus" aria-label={several ? inEx(t('Add set')) : undefined} onClick={onAddSet}>{t('Add set')}</Button>
       </div> : <Button className="wk-add" size="sm" icon="plus" aria-label={several ? inEx(t('Add set')) : undefined} onClick={onAddSet}>{t('Add set')}</Button>}
+      </>}
     </div>
+    {calmDetails}
   </>
 }
 
@@ -1332,19 +1393,20 @@ function ActiveWorkout() {
   const workKey = useUI(s => s.work?.endsAt)
   const timerKey = useUI(s => s.timer && `${s.timer.endsAt}:${s.timer.forIdx ?? ''}`)
   const readyRestEnds = useUI(s => (s.timer?.ready ? s.timer.endsAt : undefined))
-  // Gym mode, Screen-awake notice: whether the screen is being kept on, and whether the "your phone
-  // may lock" note was closed (lib/wakelock.js, store/useUI.js).
+  // Gym mode, Screen-awake notice: whether the screen is being kept on (lib/wakelock.js).
   const awakeLock = useWakeLockStatus()
-  const awakeDismissed = useUI(s => s.awakeDismissed)
   const A = S.active
   const editing = !!A.editingWorkoutId
   const paused = isPaused(A)
-  // Gym mode (lib/gym-mode.js): the chip in the header while the screen is really being kept on, and
-  // the note when it cannot be (Low Power Mode, a refused request) or was lost.
-  const gymAwake = gymOpt(S, 'awake') && !editing && !A.backfill
-  const awakeChip = gymAwake && awakeLock === 'held'
-    ? <span className="whdr-awake" title={t('Screen on')}><Icon name="phoneScreen" />{t('Screen on')}</span> : null
-  const awakeNote = gymAwake && !paused && awakeLock === 'problem' && !awakeDismissed
+  // Gym mode (lib/gym-mode.js): while the screen is not being kept on (Low Power Mode, a refused
+  // request, a lock that was lost) a small icon in the header says so; a tap tells what it means.
+  // Nothing shows while the lock is held.
+  const awakeOff = gymOpt(S, 'awake') && !editing && !A.backfill && awakeLock !== 'held'
+  const openAwakeInfo = () => useUI.getState().openSheet(close => <>
+    <h3>{t('Screen-awake notice')}</h3>
+    <p className="muted" style={{ lineHeight: 1.4 }}>{t('Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.')}</p>
+    <Button variant="primary" onClick={close}>{t('Done')}</Button>
+  </>)
   // Paused here, by a reload of a paused workout or on another device (#976): the timers hold too.
   useEffect(() => { if (paused) useUI.getState().pauseAuto() }, [paused])
   // A past workout has no rest to time — the sets were done days ago. The work timer for
@@ -1370,6 +1432,8 @@ function ActiveWorkout() {
   const listMode = workoutView === 'list' || workoutView === 'compact'
   const focusMode = workoutView === 'focus'
   const dense = workoutView === 'compact'
+  // The calm List card (index.css .card-calm): the List layout of a live workout, not Compact or a saved one being edited.
+  const calmList = workoutView === 'list' && !editing
   // A superset's heading: its own name and rest between rounds when it has them (#292).
   const ssTitle = u => {
     const m = supersetMeta(A.entries, u, { onTarget: true })
@@ -2515,7 +2579,7 @@ function ActiveWorkout() {
     const entry = live.active?.entries?.[idx]
     if (!gymOpt(live, 'asPlanned') || editing || !entry || !['reps', 'time'].includes(modeAt(idx)) || unitOf(units, idx).length > 1) return null
     if (!asPlannedRows(entry).length) return null
-    return () => {
+    const tickAll = () => {
       const open = asPlannedRows(useStore.getState().S.active?.entries?.[idx])
       if (!open.length) return
       open.forEach((i, k) => toggle(idx, i, undefined, k === open.length - 1 ? {} : { quiet: true, noRest: true }))
@@ -2530,6 +2594,25 @@ function ActiveWorkout() {
           useUI.getState().stopRest()
         },
       })
+    }
+    return () => {
+      const now = useStore.getState().S.active?.entries?.[idx]
+      if (!now || !asPlannedRows(now).length) return
+      // A weighted lift still at 0 never logs at 0: the weight is asked for first, put on the sets
+      // still to do (the warm-ups follow it), and only then are they ticked.
+      if (!needsWorkingWeight(now)) return tickAll()
+      const st = useStore.getState().S
+      const V = exView(st, now.id)
+      useUI.getState().openSheet(close => <WorkingWeightSheet name={exerciseNameText(exOr(now.id))} unit={V.unit} step={weightIncrement({ ...(now.target || {}), id: now.id }, V.unit)}
+        onSave={w => {
+          close()
+          mutEntry(idx, en => {
+            const first = asPlannedRows(en).find(i => !(Number(en.sets[i].w) > 0))
+            en.sets = withWorkingWeight(en, w)
+            rerampOpen(useStore.getState().S, en, first)
+          })
+          tickAll()
+        }} />)
     }
   }
   // The Apple Watch ticks sets through this same toggle (lib/watch-sync.js): the weight and reps it
@@ -2860,10 +2943,11 @@ function ActiveWorkout() {
       {editing
         ? <button className="iconbtn" aria-label={t('Close editor')} title={t('Close editor')} onClick={() => exitWorkoutEdit()}><Icon name="xmark" /></button>
         : <button className="iconbtn" aria-label={t('Minimize')} title={t('Minimize')} onClick={() => nav('/home')}><Icon name="chevronDown" /></button>}
-      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <>{paused && <span className="whdr-paused">{t('Paused')} </span>}<Elapsed start={A.start} pausedAt={A.pausedAt} /></>} · {t('{0} sets', done + '/' + total)}{!(A.backfill || editing) && isOn(S, 'health') && <LiveHeartRate />}</div>{awakeChip}{gymShown && (gymSwitchable
+      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <>{paused && <span className="whdr-paused">{t('Paused')} </span>}<Elapsed start={A.start} pausedAt={A.pausedAt} /></>} · {t('{0} sets', done + '/' + total)}{!(A.backfill || editing) && isOn(S, 'health') && <LiveHeartRate />}</div>{gymShown && (gymSwitchable
         ? <button type="button" className="whdr-gym" onClick={openGymMenu} aria-label={t('Gym: {0}', gymShown)}><Icon name="house" />{gymShown}</button>
         : <span className="whdr-gym"><Icon name="house" />{gymShown}</span>)}</div>
       {!chipRow && sessionMap}
+      {awakeOff && <button type="button" className="iconbtn whdr-awake-btn" aria-label={t('Screen-awake notice')} title={t('Screen-awake notice')} onClick={openAwakeInfo}><Icon name="phoneScreen" /></button>}
       <button className="iconbtn" data-tour="workout-more" aria-label={t('Workout options')} title={t('Workout options')} onClick={openViewMenu}><Icon name="more" /></button>
       <button className="btn primary pill whdr-finish" data-tour="finish" aria-label={editing ? t('Save changes') : undefined}
         onClick={() => (editing ? finishWorkout() : finishWorkoutSheet({ onDiscard: discardWorkout }))}>{editing ? t('Save') : t('Finish')}</button>
@@ -2886,12 +2970,6 @@ function ActiveWorkout() {
         <div className="small muted">{t('The clock and the rest wait for you.')}</div></div>
       <Button variant="primary" size="sm" icon="play" onClick={togglePause} style={{ width: 'auto', flex: 'none' }}>{t('Resume')}</Button>
     </div>}
-    {/* Gym mode: the screen could not be kept on, so the phone may lock between sets and rest sounds would not play. */}
-    {awakeNote && <div className="gym-awake-note" role="status">
-      <span className="gym-awake-i" aria-hidden="true"><Icon name="phoneScreen" /></span>
-      <span className="gym-awake-t">{t('Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.')}</span>
-      <button type="button" className="iconbtn" aria-label={t('Dismiss')} onClick={() => useUI.getState().dismissAwake()}><Icon name="xmark" /></button>
-    </div>}
     {/* The live widget's card, as Settings > Workout > Live widget has it for "In the app". */}
     <LiveCard />
     {editing && <p className="muted small">{t('Editing a saved workout. Date and duration stay unchanged.')}</p>}
@@ -2901,7 +2979,7 @@ function ActiveWorkout() {
       <b>{sessionPin.gym.name || t('My gym')}:</b> {sessionPin.text}</div>}
 
     {A.entries.length ? (listMode ? (
-      <div className="workout-list" data-testid="workout-list" ref={listRef}>
+      <div className={'workout-list' + (calmList ? ' card-calm' : '')} data-testid="workout-list" ref={listRef}>
         {units.map((u, ui) => {
           const multi = u.length > 1
           const isCur = u.includes(cur)
@@ -2909,19 +2987,19 @@ function ActiveWorkout() {
           // Finished and tapped open again: it says it can fold back, and does on a tap.
           const reopened = collapseOn && !isCur && !isCollapsed && opened.has(u.join('-')) && finished(u)
           return <section key={u.join('-')} className={'wl-unit' + (isCur ? ' cur' : '')} data-exidx={u[0]} data-unit-key={u.join('-')}>
-            <div className="wl-hd">
-              <span className="muted small">{multi ? t('Superset {0} / {1}', ui + 1, units.length) : t('Exercise {0} / {1}', ui + 1, units.length)}</span>
+            {(!calmList || reopened) && <div className="wl-hd">
+              {!calmList && <span className="muted small">{multi ? t('Superset {0} / {1}', ui + 1, units.length) : t('Exercise {0} / {1}', ui + 1, units.length)}</span>}
               <span className="row" style={{ gap: 6 }}>
                 {/* One of each per exercise down the list, so each says which (P4): "Exercise 2 / 5: Set current". */}
                 {reopened && <button className="chip" aria-expanded="true" aria-controls={'workout-unit-' + u.join('-')}
                   aria-label={nameIn(multi ? t('Superset {0} / {1}', ui + 1, units.length) : t('Exercise {0} / {1}', ui + 1, units.length), t('Fold away'))}
                   onClick={() => setUnitOpen(u.join('-'), false)}>{t('Fold away')}</button>}
-                {isCur
+                {!calmList && (isCur
                   ? <span className="tag acc">{t('Current')}</span>
                   : <button className="chip" aria-label={nameIn(multi ? t('Superset {0} / {1}', ui + 1, units.length) : t('Exercise {0} / {1}', ui + 1, units.length), t('Set current'))}
-                    onClick={() => focusUnit(u[0])}>{t('Set current')}</button>}
+                    onClick={() => focusUnit(u[0])}>{t('Set current')}</button>)}
               </span>
-            </div>
+            </div>}
             <div id={'workout-unit-' + u.join('-')}>
             {!isCollapsed && <CircuitCard unit={u} />}
             {/* One line per exercise, and the line is the way back in: a tap opens the sets again
@@ -2943,12 +3021,14 @@ function ActiveWorkout() {
                   return <div key={idx} ref={el => bindExRef(entry, el)} className="ss-ex" data-exidx={idx}>
                     {k > 0 && <div className="ss-amp">+</div>}
                     <ExerciseBlock entryIdx={idx} compact dense={dense} lean onSetRowRef={(setIdx, el) => bindSetRef(entry, setIdx, el)}
+                      onSetCurrent={calmList && !isCur ? () => focusUnit(u[0]) : null}
                       {...blockProps(idx)} />
                   </div>
                 })}
               </div>
             ) : (
               <ExerciseBlock entryIdx={u[0]} dense={dense} listed lean
+                onSetCurrent={calmList && !isCur ? () => focusUnit(u[0]) : null}
                 onPairPrev={u[0] > 0 ? () => pairAt(u[0] - 1, u[0]) : null}
                 onPairNext={u[0] < A.entries.length - 1 ? () => pairAt(u[0], u[0] + 1) : null}
                 {...blockProps(u[0])} />
@@ -3022,7 +3102,7 @@ function ActiveWorkout() {
       <Button trailingIcon="chevronRight" disabled={unitIdx < 0 || unitIdx >= units.length - 1} onClick={() => navigateUnit(1)}>{t('Next')}</Button>
     </div>}
     {!listMode && <div style={{ height: 10 }} />}
-    {wc.exerciseButtons && listMode && A.entries.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{t('Move, swap and remove below act on the exercise marked {0}.', t('Current'))}</div>}
+    {wc.exerciseButtons && listMode && !calmList && A.entries.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{t('Move, swap and remove below act on the exercise marked {0}.', t('Current'))}</div>}
     {/* The end of the workout (redesign 1.4.5, P3): adding an exercise and the session's note are
         one inset list of two rows, not two centred text buttons 40px apart, so the finish button
         under them is the one thing that stands out. Wrapping up is when you know how the session

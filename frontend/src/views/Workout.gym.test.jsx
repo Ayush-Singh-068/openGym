@@ -27,7 +27,7 @@ const three = () => [{ w: 80, r: 8, done: false }, { w: 80, r: 8, done: false },
 
 let roots = []
 beforeEach(() => {
-  useUI.setState({ sheets: [], toastMsg: '', toastAction: null, timer: null, work: null, awakeDismissed: false })
+  useUI.setState({ sheets: [], toastMsg: '', toastAction: null, timer: null, work: null })
   awake.status = 'idle'
   playCueIf.mockClear()
 })
@@ -105,7 +105,8 @@ describe('one tap as planned', () => {
 describe('Complete as planned', () => {
   it('ticks every open working set, starts one rest, and the Undo puts them back', () => {
     // A second exercise with a set to do, so the workout is not over and the last tick rests.
-    const el = mount(three(), { more: [entry([{ w: 60, r: 8, done: false }])] })
+    // In Cards, where the button is on the card (the List has it in the exercise's ⋯ menu, see Workout.calm.test.jsx).
+    const el = mount(three(), { view: 'cards', more: [entry([{ w: 60, r: 8, done: false }])] })
     act(() => button(el, 'Complete as planned').click())
     expect([0, 1, 2].map(i => setAt(i).done)).toEqual([true, true, true])
     expect(useUI.getState().toastMsg).toBe('Sets done as planned: 3')
@@ -120,7 +121,7 @@ describe('Complete as planned', () => {
 
   it('takes only the sets still open, and leaves a warm-up alone', () => {
     const sets = [{ w: 20, r: 10, done: false, phase: 'warmup', warmup: true }, { w: 80, r: 8, done: true }, { w: 80, r: 8, done: false }, { w: 80, r: 8, done: false }]
-    const el = mount(sets)
+    const el = mount(sets, { view: 'cards' })
     act(() => button(el, 'Complete as planned').click())
     expect([0, 1, 2, 3].map(i => setAt(i).done)).toEqual([false, true, true, true])
     expect(useUI.getState().toastMsg).toBe('Sets done as planned: 2')
@@ -131,9 +132,11 @@ describe('Complete as planned', () => {
   it('is in Cards and Compact too, and not with the part off, Gym mode off, or nothing left to tick', () => {
     expect(button(mount(three(), { view: 'cards' }), 'Complete as planned')).toBeTruthy()
     expect(button(mount(three(), { view: 'compact' }), 'Complete as planned')).toBeTruthy()
-    expect(button(mount(three(), { gym: { gymOpts: { asPlanned: false } } }), 'Complete as planned')).toBeUndefined()
-    expect(button(mount(three(), { gym: { gymMode: false } }), 'Complete as planned')).toBeUndefined()
-    expect(button(mount([{ w: 80, r: 8, done: true }, { w: 80, r: 8, done: true }]), 'Complete as planned')).toBeUndefined()
+    expect(button(mount(three(), { view: 'cards', gym: { gymOpts: { asPlanned: false } } }), 'Complete as planned')).toBeUndefined()
+    expect(button(mount(three(), { view: 'cards', gym: { gymMode: false } }), 'Complete as planned')).toBeUndefined()
+    expect(button(mount([{ w: 80, r: 8, done: true }, { w: 80, r: 8, done: true }], { view: 'cards' }), 'Complete as planned')).toBeUndefined()
+    // The List has no such button: it is in the exercise's ⋯ menu.
+    expect(button(mount(three()), 'Complete as planned')).toBeUndefined()
   })
 })
 
@@ -195,27 +198,26 @@ describe('the workout-done cue', () => {
 })
 
 describe('Screen-awake notice', () => {
-  it('shows "Screen on" in the header while the screen is kept on', () => {
+  it('shows nothing in the header while the screen is kept on', () => {
     awake.status = 'held'
     const el = mount(three())
-    expect(el.querySelector('.whdr-awake').textContent).toBe('Screen on')
+    expect(el.querySelector('.whdr-awake-btn')).toBeNull()
     expect(el.querySelector('.gym-awake-note')).toBeNull()
   })
 
-  it('shows the one-time note when the lock could not be had, and Dismiss closes it', () => {
+  it('shows a small icon, not a banner, when the lock could not be had, and a tap explains it in a sheet', () => {
     awake.status = 'problem'
     const el = mount(three())
-    expect(el.querySelector('.whdr-awake')).toBeNull()
-    expect(el.querySelector('.gym-awake-note').textContent).toContain('Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.')
-    act(() => el.querySelector('.gym-awake-note button[aria-label="Dismiss"]').click())
     expect(el.querySelector('.gym-awake-note')).toBeNull()
-    expect(useUI.getState().awakeDismissed).toBe(true)
+    act(() => el.querySelector('.whdr-awake-btn').click())
+    expect(sheet().textContent).toContain('Your phone may lock the screen. Rest sounds will not play while it is locked. Low Power Mode on iPhone stops the app keeping the screen on.')
   })
 
-  it('shows neither with the part off or Gym mode off', () => {
-    awake.status = 'held'
-    expect(mount(three(), { gym: { gymOpts: { awake: false } } }).querySelector('.whdr-awake')).toBeNull()
+  it('shows the icon whenever the lock is not held, and neither with the part off or Gym mode off', () => {
+    awake.status = 'idle'
+    expect(mount(three()).querySelector('.whdr-awake-btn')).not.toBeNull()
     awake.status = 'problem'
-    expect(mount(three(), { gym: { gymMode: false } }).querySelector('.gym-awake-note')).toBeNull()
+    expect(mount(three(), { gym: { gymOpts: { awake: false } } }).querySelector('.whdr-awake-btn')).toBeNull()
+    expect(mount(three(), { gym: { gymMode: false } }).querySelector('.whdr-awake-btn')).toBeNull()
   })
 })

@@ -126,7 +126,7 @@ vi.mock('../components/SetVideo.jsx', async () => {
   }
 })
 vi.mock('../components/WorkoutThumb.jsx', () => ({
-  default: ({ onExpand }) => React.createElement('button', { className: 'wthumb', 'aria-label': 'Expand', onClick: onExpand }),
+  default: ({ onExpand, sayAs }) => React.createElement('button', { className: 'wthumb', 'aria-label': sayAs ? 'Expand, ' + sayAs : 'Expand', onClick: onExpand }),
   hasWorkoutMedia: () => true,
 }))
 vi.mock('../components/DurationWheel.jsx', () => ({ durationSheet: mocks.durationSheet }))
@@ -2134,6 +2134,11 @@ describe('workout focus view', () => {
 describe('workout list view', () => {
   const units = () => [...container.querySelectorAll('.wl-unit')]
   const focusButton = unit => [...unit.querySelectorAll('button')].find(b => b.textContent.trim() === 'Set current')
+  // The calm List card has Set current in the exercise's ⋯ menu: the menu item, or undefined when it has none.
+  const setCurrentItem = unit => {
+    act(() => { unit.querySelector('.calm-acts button[title="More"]').dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    return menuItemsOf(mocks.menuSheet.mock.calls.at(-1)[0]).find(item => item?.label === 'Set current')
+  }
 
   it('opens at the current exercise instead of the top of the session (#224)', async () => {
     await mount([exercise('plain-bench', [true]), exercise('plain-row', [true]), exercise('plain-curl', [false])], 2, { workoutView: 'list' })
@@ -2178,11 +2183,14 @@ describe('workout list view', () => {
     expect(units().length).toBe(2)
     // Every set in the session is visible at once: 2 + 1 checkboxes, not just the current one.
     expect(container.querySelectorAll('[role="checkbox"]').length).toBe(3)
-    expect(units().map(u => u.querySelector('.wl-hd .muted')?.textContent)).toEqual([
-      'Exercise 1 / 2', 'Exercise 2 / 2',
-    ])
-    expect(units()[0].textContent).toContain('Current')
-    expect(focusButton(units()[1])).toBeTruthy()
+    // The calm card has no "Exercise n / m" text, no Current badge and no Set current button:
+    // the current unit is the outlined one, and Set current is in the exercise's ⋯ menu.
+    expect(units().map(u => u.querySelector('.wl-hd'))).toEqual([null, null])
+    expect(units().map(u => u.classList.contains('cur'))).toEqual([true, false])
+    expect(units()[0].textContent).not.toContain('Current')
+    expect(focusButton(units()[1])).toBeUndefined()
+    expect(setCurrentItem(units()[1])).toBeTruthy()
+    expect(setCurrentItem(units()[0])).toBeUndefined()
     const navButtons = [...container.querySelectorAll('button')]
       .filter(b => b.textContent.trim() === 'Prev' || b.textContent.trim() === 'Next')
     expect(navButtons.length).toBe(0)
@@ -2191,15 +2199,15 @@ describe('workout list view', () => {
   it('marks the current unit and moves the mark with Set current', async () => {
     await mount([exercise('plain-bench', [false]), exercise('plain-row', [false])], 0, { workoutView: 'list' })
 
-    await act(async () => { focusButton(units()[1]).dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    await act(async () => { setCurrentItem(units()[1]).onClick() })
     expect(mocks.S.active.cur).toBe(1)
 
     // The list is the saved default here, so the tap only moves the mark and the list stays.
     await rerender()
     expect(mocks.S.active.workoutView).toBeUndefined()
-    expect(units()[0].textContent).not.toContain('Current')
-    expect(units()[1].textContent).toContain('Current')
-    expect(focusButton(units()[0])).toBeTruthy()
+    expect(units().map(u => u.classList.contains('cur'))).toEqual([false, true])
+    expect(setCurrentItem(units()[0])).toBeTruthy()
+    expect(setCurrentItem(units()[1])).toBeUndefined()
   })
 
   it('stays in the list on Set current when the list was only opened for this session (#641)', async () => {
@@ -2207,12 +2215,12 @@ describe('workout list view', () => {
       workoutView: 'cards', active: { workoutView: 'list' },
     })
 
-    await act(async () => { focusButton(units()[1]).dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    await act(async () => { setCurrentItem(units()[1]).onClick() })
     // The list was picked from the ⋮ menu on purpose: the tap moves the mark and nothing else.
     expect(mocks.S.active.cur).toBe(1)
     expect(mocks.S.active.workoutView).toBe('list')
     await rerender()
-    expect(units()[1].textContent).toContain('Current')
+    expect(units()[1].classList.contains('cur')).toBe(true)
   })
 
   it('stays in the list on Set current when the exercise buttons act on the current exercise', async () => {
@@ -2220,7 +2228,7 @@ describe('workout list view', () => {
       workoutView: 'cards', wc: { exerciseButtons: true }, active: { workoutView: 'list' },
     })
 
-    await act(async () => { focusButton(units()[1]).dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    await act(async () => { setCurrentItem(units()[1]).onClick() })
     // Move/Swap/Remove below the list act on the exercise marked Current, so the tap picks their
     // target and jumping away to cards would take the buttons out from under the athlete.
     expect(mocks.S.active.cur).toBe(1)
@@ -2267,9 +2275,7 @@ describe('workout list view', () => {
     expect(units().length).toBe(2)
     expect(units()[0].querySelector('.ss-card')).toBeTruthy()
     expect(units()[1].querySelector('.ss-card')).toBeNull()
-    expect(units().map(u => u.querySelector('.wl-hd .muted')?.textContent)).toEqual([
-      'Superset 1 / 2', 'Exercise 2 / 2',
-    ])
+    expect(units().map(u => u.querySelector('.wl-hd'))).toEqual([null, null])
   })
 
   it('defaults to cards when the setting is absent (pre-existing profiles)', async () => {
@@ -2404,6 +2410,9 @@ describe('workout compact view', () => {
     }
     await mount([withExtras([false])], 0, state)
 
+    // The List keeps them under its Details row (closed until tapped).
+    expect(container.querySelector('.progline')).toBeNull()
+    await click([...container.querySelectorAll('.calm-fold')].find(b => b.textContent.trim() === 'Details'))
     expect(container.querySelector('.progline')).toBeTruthy()
     expect(container.textContent).toContain('Best:')
     expect(container.textContent).toContain('Last time')
@@ -2565,9 +2574,16 @@ describe('workout view header menu', () => {
 
 describe('collapsing completed workout exercises', () => {
   const units = () => [...container.querySelectorAll('.wl-unit')]
+  // List: the exercise's ⋯ menu has it (a folded unit is tapped open first). Compact: the chip.
   const setCurrent = async index => {
-    const button = [...units()[index].querySelectorAll('button')].find(b => b.textContent.trim() === 'Set current')
-    await act(async () => { button.dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    const chip = [...units()[index].querySelectorAll('button')].find(b => b.textContent.trim() === 'Set current')
+    if (chip) await act(async () => { chip.dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    else {
+      const folded = units()[index].querySelector('button.wl-summary')
+      if (folded) await click(folded)
+      await act(async () => { units()[index].querySelector('.calm-acts button[title="More"]').dispatchEvent(new dom.Event('click', { bubbles: true })) })
+      await act(async () => { menuItemsOf(mocks.menuSheet.mock.calls.at(-1)[0]).find(item => item?.label === 'Set current').onClick() })
+    }
     await rerender()
   }
 
@@ -3423,7 +3439,7 @@ describe('set-row column header', () => {
     await mount([exercise('0025', [false, false]), exercise('0027', [false, false])], 0, { active: { workoutView: 'list' } })
     const names = namesIn(container).filter(n => /Set \d|More|Add set/.test(n))
     expect(repeated(names)).toEqual([])
-    const more = [...container.querySelectorAll('.exhd button.iconbtn')].map(b => b.getAttribute('aria-label'))
+    const more = [...container.querySelectorAll('.calm-hd button.iconbtn')].map(b => b.getAttribute('aria-label'))
     expect(more).toHaveLength(2)
     expect(more.every(n => /^More, \S/.test(n))).toBe(true)
     expect(names.filter(n => /^input\|Set 1: Reps, /.test(n))).toEqual(['input|Set 1: Reps, Barbell Bench Press', 'input|Set 1: Reps, Barbell Bent Over Row'])

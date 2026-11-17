@@ -2,6 +2,9 @@
 export const metadata = { description: 'Diario personale di allenamento e peso corporeo' }
 
 export default {
+  // --- The calm List card ---
+  "Working weight": "Working weight",
+  "Save and complete": "Save and complete",
   // --- Gym mode ---
   "Gym mode": "Gym mode",
   "Big buttons": "Big buttons",

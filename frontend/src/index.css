@@ -4777,9 +4777,48 @@ body.gym-big #timer .tclock{min-height:48px}
 #timer .restnext{flex:1 0 100%;min-width:0;font-size:var(--fs-subhead);font-weight:500;color:var(--label-2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #timer.withnext.ready .restnext{color:var(--acc-ink)}
 body.resting.gym-big #app{padding-bottom:calc(196px + var(--sab))}
-/* Screen-awake notice: the "Screen on" chip in the header and the one-time note under it. */
-.whdr-awake{display:flex;align-items:center;gap:3px;width:max-content;max-width:100%;margin:2px auto 0;padding:0 8px;border-radius:99px;font-size:var(--fs-caption);line-height:1.5;color:var(--green-ink,var(--green));background:var(--surface-2);background:color-mix(in srgb,var(--green) 14%,transparent);white-space:nowrap}
-.whdr-awake .icn,.whdr-awake svg{width:12px;height:12px;flex:none}
-.gym-awake-note{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:0 0 12px;border-radius:var(--r-card);font-size:var(--fs-footnote);line-height:1.35;background:var(--surface);background:color-mix(in srgb,var(--yellow) 14%,var(--surface))}
-.gym-awake-i{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:99px;background:var(--yellow);color:#000}
-.gym-awake-t{flex:1;min-width:0}
+/* Screen-awake notice: a small icon in the workout header while the screen is not being kept on. */
+/* It fades in after a moment, so the instant before the lock is first taken does not flash it. */
+.whdr-awake-btn{color:var(--orange-ink,var(--orange));animation:whdr-awake-in .25s ease .8s both}
+@keyframes whdr-awake-in{from{opacity:0}to{opacity:1}}
+
+/* ---- The calm List card (.card-calm on .workout-list, views/Workout.jsx) ---- */
+/* One quiet card per exercise: a header (picture, name, one muted line, the ⋯ menu), one folded
+   Warm-up row, the sets as big rows, a small Add set, and one folded Details row. Only the List
+   layout carries .card-calm, so Cards, Focus and Compact are as they were. The current exercise is
+   the thin outline .wl-unit.cur already draws. */
+.card-calm .wl-unit{padding:12px 14px 4px;background:var(--surface)}
+@media (max-width:404px){
+  .card-calm .wl-unit{padding:10px 10px 2px}
+}
+.card-calm .wl-hd{justify-content:flex-end;margin-bottom:6px}
+.card-calm .calm-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.card-calm .calm-ti{flex:1;min-width:0}
+.card-calm .calm-name{font-size:var(--fs-callout) !important;font-weight:600;letter-spacing:-.01em;line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.card-calm .calm-sub{margin-top:2px;font-size:var(--fs-footnote);line-height:1.3;color:var(--label-2);font-variant-numeric:tabular-nums}
+.card-calm .calm-acts{flex:none;gap:0}
+/* The folded rows: Warm-up above the sets, Details below them. */
+.card-calm .calm-fold{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:40px;padding:0 2px;background:none;border:0;color:var(--label-2);font:inherit;font-size:var(--fs-footnote);font-weight:500;text-align:start;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.card-calm .calm-fold .icn{flex:none;font-size:var(--fs-footnote);transition:transform .15s}
+.card-calm .calm-fold[aria-expanded="true"] .icn{transform:rotate(180deg)}
+.card-calm .calm-details{padding:2px 0 10px}
+/* The sets sit straight on the card, not in a second, darker one. */
+.card-calm .wl-unit .calm-sets{background:none;padding:0;border-radius:0}
+.card-calm .sethead{padding-bottom:2px}
+/* Quieter steppers: the − and + are lighter, the hit areas are the same. */
+.card-calm .setrow .stp button{color:var(--label-2)}
+.card-calm .setrow.done .n{background:var(--surface-2);color:var(--label-2)}
+/* A row with a third box (a run's incline, an effort rating) gives the number the room: 4.5 km/h must not clip. */
+.card-calm .setrow.eff3 .stp button{width:18px}
+/* Warm-up rungs, when the Warm-up row is open, are a step quieter than the work sets under them. */
+.card-calm .setrow.ramp .n{background:none;box-shadow:inset 0 0 0 1px var(--sep)}
+.card-calm .setrow.ramp .stp .num{color:var(--label-2)}
+.card-calm .setsep{margin:4px 0 6px}
+/* A ticked set: the circle takes the success tint, and stays as clear as an open one while the rest of the row steps back. */
+.card-calm .setrow.done>.chk{opacity:1}
+.card-calm .setrow .chk.on{background:var(--surface-2);background:color-mix(in srgb,var(--green) 30%,var(--surface-2));box-shadow:inset 0 0 0 1.8px var(--green);color:var(--green-ink,var(--green))}
+/* Add set: a small text button at the end of the sets. */
+.card-calm .calm-foot{display:flex;flex-wrap:wrap;align-items:center;gap:0 14px;padding:2px 0 0}
+.card-calm .calm-txt{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 2px;background:none;border:0;color:var(--acc-ink);font:inherit;font-size:var(--fs-subhead);font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.card-calm .calm-txt:disabled{opacity:.4;cursor:default}
+.card-calm .calm-txt .icn{font-size:var(--fs-subhead)}

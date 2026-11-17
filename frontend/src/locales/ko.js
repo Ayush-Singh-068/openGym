@@ -1,5 +1,8 @@
 // Korean UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  // --- The calm List card ---
+  "Working weight": "Working weight",
+  "Save and complete": "Save and complete",
   // --- Gym mode ---
   "Gym mode": "Gym mode",
   "Big buttons": "Big buttons",

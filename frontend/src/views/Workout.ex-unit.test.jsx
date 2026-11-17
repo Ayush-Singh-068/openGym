@@ -82,6 +82,8 @@ describe('a pinned exercise in a running session', () => {
 
   it('loads lb plates on the 45 lb bar', () => {
     mount([entry(BENCH, [work(61.235)])], LB)
+    // The List layout keeps the plates under its Details row.
+    act(() => [...container.querySelectorAll('.calm-fold')].find(b => b.textContent.trim() === 'Details').click())
     const line = container.querySelector('.plateline')
     expect(line.textContent).toContain('45 per side')
   })

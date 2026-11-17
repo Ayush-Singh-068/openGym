@@ -3,8 +3,8 @@
 // S.gymMode is the master switch and S.gymOpts = { big, asPlanned, next, awake } its four parts; a
 // part missing from gymOpts counts as on. This file is the pure side: whether a part is on, which
 // set comes next, the line that says so, and which sets "Complete as planned" ticks.
-import { isWarmupRow, isSideSet } from './workout-model.js'
-import { modeOf, setsRepsOf } from './history.js'
+import { isWarmupRow, isSideSet, WEIGHT_ORIGIN_MANUAL } from './workout-model.js'
+import { modeOf, setsRepsOf, exLine, isBw, setsFromRows } from './history.js'
 import { fmtNum } from './format.js'
 import { t, tn, tnf, exerciseNameFor } from './i18n-core.js'
 import { EXIDX } from './exercises.js'
@@ -148,4 +148,47 @@ export function asPlannedRows(entry) {
   const out = []
   ;(entry?.sets || []).forEach((s, i) => { if (s && !s.done && !isWarmupRow(s) && !isSideSet(s) && !s.side) out.push(i) })
   return out
+}
+
+/**
+ * The one muted line under an exercise's name in the List layout: "4 × 5–6 · 60 kg", the sets and
+ * the reps (a range, a hold's seconds, minutes for cardio) and the working weight when there is one.
+ * The weight is the first work row's, as the rows show it today; a 0 leaves it out. `unit` is the
+ * unit the entry is in, `speedUnit` the profile's speed unit (cardio). Never throws.
+ */
+export function exerciseTargetLine(entry, unit = 'kg', speedUnit) {
+  if (!entry) return ''
+  const cfg = { ...(entry.target || {}), id: entry.id }
+  const work = (entry.sets || []).filter(s => s && !isWarmupRow(s))
+  const row = work[0]
+  const w = !row ? 0 : isSideSet(row) ? Math.max(Number(row.sides?.L?.w) || 0, Number(row.sides?.R?.w) || 0) : Number(row.w) || 0
+  // The count follows the rows, so a set added by hand reads as one more; with no rows the plan's.
+  const sets = work.length ? setsFromRows(cfg, work.length) : cfg.sets
+  try { return exLine({ ...cfg, sets, weight: w > 0 ? w : 0 }, unit, speedUnit) } catch { return '' }
+}
+
+/**
+ * Whether "Complete as planned" has to ask for the working weight first: a weighted rep exercise
+ * with an open work set at 0. Body weight, holds, runs and carries are never asked.
+ */
+export function needsWorkingWeight(entry) {
+  if (!entry) return false
+  const cfg = { ...(entry.target || {}), id: entry.id }
+  if (modeOf(cfg) !== 'reps' || isBw(cfg)) return false
+  return asPlannedRows(entry).some(i => !(Number(entry.sets[i].w) > 0))
+}
+
+/**
+ * The sets of `entry` with weight `w` on every open work set that has none (the sets "Complete as
+ * planned" ticks). The first of them is marked as typed by hand, so a later weight change on it
+ * carries down the rest like any typed weight. A set that has a weight, a ticked set and a warm-up
+ * are left as they are.
+ */
+export function withWorkingWeight(entry, w) {
+  const open = asPlannedRows(entry).filter(i => !(Number(entry.sets[i].w) > 0))
+  return (entry?.sets || []).map((s, i) => {
+    const k = open.indexOf(i)
+    if (k < 0) return s
+    return { ...s, w, ...(k === 0 ? { weightOrigin: WEIGHT_ORIGIN_MANUAL } : {}) }
+  })
 }

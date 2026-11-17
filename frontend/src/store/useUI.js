@@ -341,7 +341,6 @@ export const useUI = create((set, get) => ({
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked, wide }
   toastMsg: '',
   toastAction: null,   // { label, run, id } while the toast offers an action (Undo)
-  awakeDismissed: false, // Gym mode: the "your phone may lock" note was closed (this visit only, never saved)
   swipeHint: null,     // { idx, i, id }: the set row showing the one-time swipe hint (Workout.jsx)
   setFlash: null,      // { idx, i, id }: the set row a copy or an undo just brought, flashed once
   timer: null,         // rest countdown between sets — { left, total, endsAt, forIdx, ready?, paused?, kind? }
@@ -394,7 +393,6 @@ export const useUI = create((set, get) => ({
     toastPaused = false
     set({ toastMsg: '', toastAction: null })
   },
-  dismissAwake() { set({ awakeDismissed: true }) },
   pauseToast() {
     if (!get().toastAction || toastPaused) return
     toastPaused = true
