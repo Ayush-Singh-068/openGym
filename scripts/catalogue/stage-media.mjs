@@ -26,8 +26,11 @@ if (clipExt === '.webp' && !appDir) {
 
 // A release folder holds one kind of file: asking it for the other copied nothing, and an app
 // without a single animation passed every check after (#962). Checked before anything is copied.
+// NO_CLIPS=1 leaves the animations out (stills only, about a fifth of the size) for a host with a
+// small upload limit.
+const noClips = process.env.NO_CLIPS === '1'
 const clipFrom = appDir || path.join(media, 'clip')
-if (!fs.existsSync(clipFrom) || !fs.readdirSync(clipFrom).some(f => f.endsWith(clipExt))) {
+if (!noClips && (!fs.existsSync(clipFrom) || !fs.readdirSync(clipFrom).some(f => f.endsWith(clipExt)))) {
   console.error(`no ${clipExt} animations in ${clipFrom}${appDir && clipExt === '.mp4' ? ': a release folder holds WebP, set VITE_CLIP_EXT=webp' : ''}`)
   process.exit(1)
 }
@@ -44,6 +47,6 @@ const copyDir = (from, to, ext) => {
 }
 const dest = path.join(out, 'exercise-media')
 const stills = copyDir(path.join(media, 'still'), path.join(dest, 'still'), '.webp')
-const clips = copyDir(clipFrom, path.join(dest, 'clip'), clipExt)
+const clips = noClips ? 0 : copyDir(clipFrom, path.join(dest, 'clip'), clipExt)
 fs.copyFileSync(path.join(media, 'NOTICE.md'), path.join(dest, 'NOTICE.md'))
 console.log(`media: ${stills} stills, ${clips} animations${appDir ? ' (app size)' : ''} -> ${path.relative(ROOT, out) || out}`)

@@ -10,5 +10,10 @@
 // time, so the demo-only UI folds away and the seed generator — imported dynamically — never
 // lands in a self-hosted bundle.
 export const DEMO = import.meta.env.VITE_DEMO === '1'
+// Local build (VITE_LOCAL=1): the same no-server behaviour as the demo, but for real use. It boots
+// empty (no example history), keeps everything in this browser and hides what needs a backend.
+export const LOCAL_BUILD = import.meta.env.VITE_LOCAL === '1'
+// "There is no backend to talk to": true for the demo and the local build.
+export const NO_SERVER = DEMO || LOCAL_BUILD
 export const DEMO_SEEDED = 'gym_demo_seeded_v1'
 export const REPO = 'https://gitlab.com/DuarteSantos8/opengym'

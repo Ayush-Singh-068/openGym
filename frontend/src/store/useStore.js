@@ -5,7 +5,8 @@ import { localTZ } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { registerCustom, healCustomEx } from '../lib/exercises.js'
 import { syncGymInventory } from '../lib/gym-inventory.js'
-import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
+import { DEMO, LOCAL_BUILD, DEMO_SEEDED } from '../lib/demo.js'
+import { loadMirror, scheduleMirror, flushMirror, writeSafety, keepStorage, mirrorUsable, fitsLocalStorage } from '../lib/local-mirror.js'
 import { rememberDefaultLang } from '../lib/default-lang.js'
 import { guestAllowed } from '../lib/guest.js'
 import { stateJson } from '../lib/state-json.js'
@@ -727,11 +728,16 @@ export const useStore = create((set, get) => {
     // signed-in device still gets it there; and it is said out loud once, because a change that
     // is not on the device is the one thing the screen cannot show on its own.
     let saved = true
+    let json = null
     try {
       // The marker goes first: a tab that loads the copy in between gets an older base than the
       // copy's, which costs one merge at worst — never a newer one, which would lose data.
       saveMarker(base)
-      localStorage.setItem(KEY, stateJson(S))
+      json = stateJson(S)
+      // Local build: a profile too big for localStorage lives in IndexedDB alone (lib/local-mirror.js),
+      // once that has opened; the stale copy is dropped so a start never prefers it.
+      if (LOCAL_BUILD && !fitsLocalStorage(json.length) && mirrorUsable()) localStorage.removeItem(KEY)
+      else localStorage.setItem(KEY, json)
       localStorage.setItem(WID_OWNER_KEY, seenOwner || '')
       const wid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
       localStorage.setItem(WID_KEY, wid)
@@ -762,6 +768,8 @@ export const useStore = create((set, get) => {
     // server — goes to the file at once. Until it does, the file holds the copy it replaced,
     // which looks newer, and a start in between would take that one back (restoreFromMirror).
     if (MOBILE) nativePersist(!stamp || workoutMoved)
+    // Local build: the second copy and the day's snapshot, in IndexedDB (lib/local-mirror.js).
+    if (LOCAL_BUILD) scheduleMirror(json ?? stateJson(S), S._ts || 0)
     if (push && get().user) {
       // Before boot has pulled, the copy in hand may be older than the server's: a push now
       // would carry it with a stale (or no) baseRev. It waits for finishBoot.
@@ -1697,6 +1705,8 @@ export const useStore = create((set, get) => {
       const server = read?.state || null
       const now = Math.max(Date.now(), highestStamp(cur) + 1, highestStamp(server) + 1, highestStamp(backup) + 1)
       const next = sanitizeAccent(Object.assign(clone(DEF), backup))
+      // Local build: the copy about to be replaced is kept as a snapshot first.
+      if (LOCAL_BUILD && hasData(cur)) writeSafety(stateJson(cur), cur._ts || 0)
       // A workout running here lives on this device only: no backup and no server copy holds it,
       // so the import keeps it (in the backup's unit). Only with none running does a backup taken
       // mid-workout bring its own session back. Both the replace and "Merge them in" dropped it.
@@ -2244,6 +2254,26 @@ export const useStore = create((set, get) => {
           localStorage.setItem(DEMO_SEEDED, '1')
           await get().resetDemo()
         }
+        get().setGuest(true)
+        finishBoot()
+        return
+      }
+      // Local build (VITE_LOCAL=1): no backend either, but real use: no seeding, no /api calls,
+      // straight into the guest profile that lives in this browser.
+      if (LOCAL_BUILD) {
+        // The IndexedDB copy stands in when localStorage was emptied or holds an older one.
+        const m = await loadMirror()
+        if (m) {
+          try {
+            const saved = JSON.parse(m.json)
+            if (!hasData(get().S) || (m.ts || 0) > (get().S._ts || 0)) persist(sanitizeAccent(Object.assign(clone(DEF), saved)), false, false)
+          } catch { /* an unreadable copy is left alone */ }
+        }
+        // What localStorage already holds goes into the second copy at once, not at the next change.
+        if (hasData(get().S)) scheduleMirror(stateJson(get().S), get().S._ts || 0)
+        keepStorage()
+        window.addEventListener('pagehide', flushMirror)
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushMirror() })
         get().setGuest(true)
         finishBoot()
         return

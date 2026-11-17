@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { DEMO } from './lib/demo.js'
+import { DEMO, NO_SERVER } from './lib/demo.js'
 import { useDailyWebdav } from './lib/use-daily-webdav.js'
 import { offlineBuild } from './lib/build-caps.js'
 import { hideBoot } from './lib/boot.js'
@@ -60,6 +60,8 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
 import SyncBanner from './components/SyncBanner.jsx'
+import BackupReminder from './components/BackupReminder.jsx'
+import PinLock from './components/PinLock.jsx'
 import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import { SeasonalLayer } from './components/Seasonal.jsx'
@@ -169,7 +171,7 @@ function Shell() {
   // the figure shown (components/Animations.jsx). Nothing on the web.
   useAnimPacksBoot()
   // Backup to WebDAV (#582): this device's daily copy, when one is set up (lib/webdav-run.js).
-  useDailyWebdav(ready && !DEMO && !offlineBuild())
+  useDailyWebdav(ready && !NO_SERVER && !offlineBuild())
   // A circuit's clock that was running before a reload carries on from where it is now.
   useEffect(() => { if (!ready) return; wireCircuit(); restoreCircuit() }, [ready])
   // Back from "Sign in with OpenRouter" on the admin card (lib/openrouter-signin.js): the code in
@@ -454,6 +456,8 @@ function Shell() {
           would ride along with the page for the length of it. Decides for itself when to show —
           including on the sign-in screen, when the server has just ended the session. */}
       <SyncBanner />
+      <BackupReminder />
+      <PinLock />
       {!noTabs && <TabBar onStart={startOrPreview} onPick={startPickerSheet} />}
       {!noTabs && authed && <ScrollTopButton off={loc.pathname === '/workout'} path={loc.pathname} />}
       <RestTimer />

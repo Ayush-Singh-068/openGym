@@ -34,7 +34,7 @@ vi.mock('../lib/api.js', () => ({
   appBase: () => '/',
 }))
 vi.mock('../lib/mobile.js', () => ({ get MOBILE() { return mocks.MOBILE } }))
-vi.mock('../lib/demo.js', () => ({ DEMO: false }))
+vi.mock('../lib/demo.js', () => ({ DEMO: false, NO_SERVER: false, LOCAL_BUILD: false }))
 vi.mock('../lib/health-sync.js', () => ({
   healthStatus: () => Promise.resolve(mocks.health ? { status: mocks.health.status, platform: mocks.health.platform } : { status: 'unsupported' }),
   loadHealth: () => Promise.resolve(mocks.health || {}),

@@ -5,7 +5,7 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
 import { api, appBase } from '../lib/api.js'
-import { DEMO } from '../lib/demo.js'
+import { DEMO, NO_SERVER } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { fmtAgo } from '../lib/format.js'
 import { copyText } from '../lib/clipboard.js'
@@ -121,13 +121,13 @@ export default function IntegrationsPage({ android = false, ios = false }) {
   const toast = useUI(s => s.toast)
   const fileRef = useRef(null)
   const offered = config?.integrations?.providers || []
-  const server = useServerIntegrations(!!user && !DEMO && offered.length > 0)
+  const server = useServerIntegrations(!!user && !NO_SERVER && offered.length > 0)
   const health = useHealth()
   const platform = MOBILE ? (ios ? 'ios' : android ? 'android' : health?.platform || platformNow()) : null
   const S = useStore(s => s.S)
   const webdav = useWebdavConfig()
   const nutrition = useNutritionLink()
-  const tokens = tokensOn(config, user, DEMO) && isOn(S, 'integrations')
+  const tokens = tokensOn(config, user, NO_SERVER) && isOn(S, 'integrations')
   // The calendar feed's state, asked once per visit where the server has tokens.
   const [calendar, setCalendarState] = useState(null)
   useEffect(() => { if (tokens) getCalendar().then(setCalendarState).catch(() => {}) }, [tokens])
