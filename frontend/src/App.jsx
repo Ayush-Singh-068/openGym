@@ -60,6 +60,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
 import SyncBanner from './components/SyncBanner.jsx'
+import UpdateBar from './components/UpdateBar.jsx'
 import BackupReminder from './components/BackupReminder.jsx'
 import PinLock from './components/PinLock.jsx'
 import RestTimer from './components/RestTimer.jsx'
@@ -456,6 +457,7 @@ function Shell() {
           would ride along with the page for the length of it. Decides for itself when to show —
           including on the sign-in screen, when the server has just ended the session. */}
       <SyncBanner />
+      <UpdateBar />
       <BackupReminder />
       <PinLock />
       {!noTabs && <TabBar onStart={startOrPreview} onPick={startPickerSheet} />}

@@ -71,6 +71,7 @@ import { importHevyData, parseHevyAccount, HevyApiError, HEVY_DEV_SETTINGS, merg
 import { aliasMatches, choiceOpts, combineNames, rememberPicks } from './lib/import-choices.js'
 import ImportChoices, { freshChoices, choicesChanged } from './components/ImportChoices.jsx'
 import { buildPlanBundle, buildProgrammeBundle, parsePlan, mergePlan } from './lib/plan-share.js'
+import { SIX_DAY_PPL } from './lib/plans/six-day-ppl.js'
 import PrintPlanSheet from './components/PrintPlanSheet.jsx'
 import { printWorkout } from './lib/report-print.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP, formulaOf, FORMULA_NAMES } from './lib/onerm.js'
@@ -332,6 +333,17 @@ function StarterPlanChooser({ close }) {
           {profiles.map(p => <button key={p.id} className={'chip nocap' + (fit?.id === p.id ? ' on' : '')} onClick={() => setFitId(p.id)}>{p.name}</button>)}
         </div>
       : <div className="small dim" style={{ margin: '0 0 10px' }}>{t('Add an equipment profile in Settings to fit a plan to what you own.')}</div>}
+    <div className="list">
+      <div className="item" data-plan="six-day-ppl" {...tappable(() => {
+        close()
+        try { planImportSheet(parsePlan(SIX_DAY_PPL, S().unit || 'kg')) }
+        catch { ui().toast(t('Couldn’t read that file.')) }
+      })}>
+        <span className="lrow-i" style={{ background: 'var(--surface-3)' }}><Icon name="clipboard" /></span>
+        <div className="grow"><div className="tt">{t('6-Day Push Pull Legs')}</div><div className="ss">{t('{0} days per week', 6)} · {t('Pull, push and legs twice a week, Monday to Saturday, with rep ranges, rest times, effort notes, alternatives and treadmill.')}</div></div>
+        <Icon name="chevronRight" className="chev" />
+      </div>
+    </div>
     {[starterPlanOptions().filter(o => !AWAY_PLANS.includes(o.id)), starterPlanOptions().filter(o => AWAY_PLANS.includes(o.id))].map((list, gi) => <Fragment key={gi}>
       {gi === 1 && <h4 className="sec" style={{ marginTop: 16 }}>{t('Away from the gym')}</h4>}
       <div className="list">

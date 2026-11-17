@@ -159,6 +159,26 @@ describe('sw.js install and activate', () => {
     expect(await globalThis.caches.keys()).toEqual([CACHE])
     expect((await globalThis.caches.open(CACHE)).keys()).toContain('index.html')
   })
+
+  it('an update that installs under a running version waits, and takes over only when the page sends SKIP_WAITING', async () => {
+    await loadSW()
+    await previousBuild()
+    globalThis.self.registration.active = { state: 'activated' }
+    globalThis.fetch = async u => (String(u) === 'index.html'
+      ? { ok: true, status: 200, redirected: false, text: async () => shellHtml }
+      : { ok: true, status: 200, clone: () => ({}) })
+
+    await fire('install')
+    expect(skipWaiting).toBe(0)
+    await fire('message', { data: { type: 'SKIP_WAITING' } })
+    expect(skipWaiting).toBe(1)
+  })
+
+  it('a message other than SKIP_WAITING does not take over', async () => {
+    await loadSW()
+    await fire('message', { data: { type: 'SOMETHING_ELSE' } })
+    expect(skipWaiting).toBe(0)
+  })
 })
 
 // The push service rotates a subscription (expiry, a key change) and the worker re-registers it,

@@ -118,19 +118,61 @@ function lateAnswer() {
 }
 
 describe('service worker offline cold-launch (issue #274)', () => {
-  it('a navigation the network never answers is answered from the cached shell after 3 s, not before', async () => {
-    const { listeners, cache, clock } = loadServiceWorker({ fetchImpl: deadRadio })
+  it('a navigation to the app page is answered from the cached shell at once, without waiting for the network', async () => {
+    const { listeners, cache } = loadServiceWorker({ fetchImpl: deadRadio })
     await cache.put('index.html', new Response('cached-shell'))
 
     const e = makeFetchEvent('https://gym.example/')
     listeners.fetch(e)
-    await clock.advance(2999)
-    const early = await Promise.race([e.response.then(() => 'settled'), settle().then(() => 'still-pending')])
-    expect(early).toBe('still-pending')
-
-    await clock.advance(1)
     const res = await e.response
     expect(await res.text()).toBe('cached-shell')
+  })
+
+  it('a navigation to the app page is answered from the cached shell even when the network would answer', async () => {
+    let asked = 0
+    const { listeners, cache } = loadServiceWorker({ fetchImpl: () => { asked++; return Promise.resolve(new Response('network-shell')) } })
+    await cache.put('index.html', new Response('cached-shell'))
+
+    const e = makeFetchEvent('https://gym.example/index.html')
+    listeners.fetch(e)
+    expect(await (await e.response).text()).toBe('cached-shell')
+    expect(asked).toBe(0)
+  })
+
+  it('a non-hashed file whose network answer is a 503 is answered from the cache when it has a copy', async () => {
+    const { listeners, cache } = loadServiceWorker({ fetchImpl: () => Promise.resolve(new Response('host error page', { status: 503 })) })
+    await cache.put('https://gym.example/manifest.json', new Response('cached manifest'))
+
+    const e = makeFetchEvent('https://gym.example/manifest.json', 'cors')
+    listeners.fetch(e)
+    expect(await (await e.response).text()).toBe('cached manifest')
+  })
+
+  it('a non-hashed file whose network answer is a 503 is passed on as the 503 when nothing is cached', async () => {
+    const { listeners } = loadServiceWorker({ fetchImpl: () => Promise.resolve(new Response('host error page', { status: 503 })) })
+
+    const e = makeFetchEvent('https://gym.example/manifest.json', 'cors')
+    listeners.fetch(e)
+    expect((await e.response).status).toBe(503)
+  })
+
+  it('a navigation redirect (opaqueredirect) to a non-app page is passed on, not replaced by the cached index.html', async () => {
+    const redirect = { ok: false, status: 0, redirected: false, type: 'opaqueredirect' }
+    const { listeners, cache } = loadServiceWorker({ fetchImpl: () => Promise.resolve(redirect) })
+    await cache.put('index.html', new Response('cached-shell'))
+
+    const e = makeFetchEvent('https://gym.example/watch/x')
+    listeners.fetch(e)
+    expect((await e.response).type).toBe('opaqueredirect')
+  })
+
+  it('a page outside the app shell (for example /watch/) is not answered with the cached index.html when the network answers ok', async () => {
+    const { listeners, cache } = loadServiceWorker({ fetchImpl: () => Promise.resolve(new Response('the watch page', { status: 200 })) })
+    await cache.put('index.html', new Response('cached-shell'))
+
+    const e = makeFetchEvent('https://gym.example/watch/x')
+    listeners.fetch(e)
+    expect(await (await e.response).text()).toBe('the watch page')
   })
 
   it('a script whose body is still arriving after 3 s reaches the page whole, and is cached', async () => {

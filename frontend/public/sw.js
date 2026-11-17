@@ -1,9 +1,12 @@
-/* openGym service worker — the app shell and its hashed assets are cached at install and kept
-   fresh network-first, media (img/gif) cache-first in a cache of its own. A home-screen app
-   reopened without a network comes back from here with the same bundle it last ran; the state
-   itself lives in localStorage. `CACHE` carries the build hash (vite.config.js rewrites it), so
-   every deploy is a new worker with its own cache and the previous build's files are dropped on
-   activate; the media cache (`MEDIA`) is kept across builds. */
+/* openGym service worker. The app page (the scope root and its index.html) is served cache-first
+   from the version this worker installed, so a home-screen app opens from the device and never
+   shows a host's error page. Hashed assets (assets/<name>-<hash>.js|css) are cache-first too.
+   Every other request is network-first with the cache as the fallback. A new version installs in
+   the background and waits until the page asks for it (SKIP_WAITING, the Reload bar) or every
+   window of the app has closed. The state itself lives in localStorage. `CACHE` carries the build
+   hash (vite.config.js rewrites it), so every deploy is a new worker with its own cache and the
+   previous build's files are dropped on activate; the media cache (`MEDIA`) is kept across builds
+   and media (img/gif) is cache-first in it. */
 const CACHE = 'opengym-rt-__BUILD__'
 // Where the page leaves this browser's push device id (lib/push.js shareDeviceId) for the
 // pushsubscriptionchange handler below, which has no localStorage to read it from. Not a build
@@ -87,8 +90,16 @@ async function precache() {
   await c.put('index.html', new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } }))
 }
 
+// A first install takes over at once. An update waits: the open app keeps the version it started
+// with until it asks for the new one (the Reload bar sends SKIP_WAITING) or every window of it has
+// closed. A failed or redirected shell makes precache throw, so a broken host never replaces a
+// working version.
 self.addEventListener('install', e => {
-  e.waitUntil(precache().then(() => self.skipWaiting()))
+  e.waitUntil(precache().then(() => { if (!self.registration?.active) return self.skipWaiting() }))
+})
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting()
 })
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
@@ -253,10 +264,52 @@ const API = (() => { try { return new URL('api/', location.href).pathname } catc
 // How long a request for the app itself waits on the network before a cached copy answers it.
 const NET_WAIT_MS = 3000
 
+// A dead radio does not reject fetch() quickly — it just never settles, so a cold-launch of
+// the installed app with no network stayed on a blank screen forever, with the cache fallback
+// never getting a chance to run (issue #274). So a request the network has not answered within
+// NET_WAIT_MS is answered from the cache, when the cache has it. Nothing is aborted: an abort
+// that fires once the headers are in errors the body the page is still reading, and on a slow
+// connection a locale pack or a chunk that was on its way failed outright, every start again,
+// since a body that never finishes is never cached either (and AbortSignal.timeout, which the
+// abort used, does not exist before iOS 16: the handler threw before it answered at all, the
+// cache fallback with it). A request the cache cannot answer keeps waiting for the network, as
+// it always did; and the network's answer, whenever it comes, still refreshes the cache.
+// Network first, with the cache as the fallback: after NET_WAIT_MS with no answer, at once when the
+// network fails, and also when the host answers with an error page, a login wall or a redirect,
+// which is never shown in place of a copy this worker has. The copy for the cache is cloned before
+// the response is handed to the page — cloning later, once the page has started reading the body,
+// throws and caches nothing, which is why the shell never used to survive an offline reload.
+const networkFirst = request => new Promise(resolve => {
+  const fromCache = () => caches.match(request, { ignoreSearch: true }).then(hit =>
+    hit || (request.mode === 'navigate' ? caches.match('index.html') : undefined))
+  const slow = setTimeout(() => fromCache().then(hit => { if (hit) resolve(hit) }, () => {}), NET_WAIT_MS)
+  fetch(request).then(res => {
+    clearTimeout(slow)
+    // A navigation's redirect (redirect mode "manual") is the host sending the browser elsewhere,
+    // not an error page: it goes through untouched.
+    if (res.type === 'opaqueredirect') { resolve(res); return }
+    if (res.ok && !res.redirected) {
+      const copy = res.clone()
+      caches.open(CACHE).then(c => c.put(request, copy)).catch(() => {})
+      resolve(res)
+      return
+    }
+    fromCache().then(hit => resolve(hit || res), () => resolve(res))
+  }, () => {
+    clearTimeout(slow)
+    resolve(fromCache())
+  })
+})
+
 // The build's own chunks and stylesheets (assets/<name>-<hash>.js|css): the name changes whenever
 // the content does, so a copy in this build's cache is the file, and a start serves them from
 // here instead of asking the network about each of them again (40-odd round trips before Home).
 const isHashedAsset = p => /\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.(?:js|css)$/.test(p)
+// The app's own page: the scope root or its index.html. Any other page (for example /watch/) is not
+// the app shell and keeps network first. The scope comes from the worker's own location, as the
+// API path above does, with the root as the fallback.
+const SCOPE_PATH = (() => { try { return new URL('./', location.href).pathname } catch { return '/' } })()
+const isAppPage = u => u.pathname === SCOPE_PATH || u.pathname === SCOPE_PATH + 'index.html'
 const cacheFirst = e => caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => {
   // Only a real answer is kept: an auth proxy's login page would otherwise stand in for the chunk
   // for the rest of this build.
@@ -277,30 +330,11 @@ self.addEventListener('fetch', e => {
     e.respondWith(cacheFirst(e))
     return
   }
-  // Network first; the copy for the cache is cloned before the response is handed to the page —
-  // cloning later, once the page has started reading the body, throws and caches nothing, which
-  // is why the shell never used to survive an offline reload.
-  // A dead radio does not reject fetch() quickly — it just never settles — so a cold-launch of
-  // the installed app with no network stayed on a blank screen forever, with the cache fallback
-  // never getting a chance to run (issue #274). So a request the network has not answered within
-  // NET_WAIT_MS is answered from the cache, when the cache has it. Nothing is aborted: an abort
-  // that fires once the headers are in errors the body the page is still reading, and on a slow
-  // connection a locale pack or a chunk that was on its way failed outright, every start again,
-  // since a body that never finishes is never cached either (and AbortSignal.timeout, which the
-  // abort used, does not exist before iOS 16: the handler threw before it answered at all, the
-  // cache fallback with it). A request the cache cannot answer keeps waiting for the network, as
-  // it always did; and the network's answer, whenever it comes, still refreshes the cache.
-  const fromCache = () => caches.match(e.request, { ignoreSearch: true }).then(hit =>
-    hit || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined))
-  e.respondWith(new Promise(resolve => {
-    const slow = setTimeout(() => fromCache().then(hit => { if (hit) resolve(hit) }, () => {}), NET_WAIT_MS)
-    fetch(e.request).then(res => {
-      clearTimeout(slow)
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {}) }
-      resolve(res)
-    }, () => {
-      clearTimeout(slow)
-      resolve(fromCache())
-    })
-  }))
+  // The app page: the copy this worker installed, at once, whatever the network is doing. A first
+  // visit, with nothing cached yet, goes to the network.
+  if (e.request.mode === 'navigate' && isAppPage(url)) {
+    e.respondWith(caches.open(CACHE).then(c => c.match('index.html')).then(hit => hit || networkFirst(e.request)))
+    return
+  }
+  e.respondWith(networkFirst(e.request))
 })
