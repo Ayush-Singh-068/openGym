@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   deloadCycleOf, setDeloadEvery, deloadWhy, isDeloadDay, nextDeloadWeek, pushBack, skipDeload, addDeload,
   dismissSuggestion, deloadSets, performanceTrend, formTrend, deloadSuggestion, setDailyFormSource, dailyFormScores, setDeloadAuto,
+  deloadSetsFor, deloadWeightFor, skipsCardio, setDeloadSets, setDeloadDrop, setDeloadCardio,
 } from './deload-cycle.js'
 import { buildSessionEntries } from './session-start.js'
 
@@ -102,5 +103,64 @@ describe('the automatic trigger', () => {
     const T = falling()
     addDeload(T, '2026-10-26')
     expect(deloadSuggestion(T, '2026-11-04')).toBe(null)
+  })
+})
+
+describe('deload week settings: sets, weight, cardio', () => {
+  it('defaults keep today\'s numbers and are not written', () => {
+    expect(deloadCycleOf({})).toMatchObject({ sets: 0, drop: 0, cardio: 'keep' })
+    expect(deloadSetsFor(3, undefined)).toBe(deloadSets(3))
+    expect(deloadWeightFor(100, undefined)).toBe(100)
+    expect(deloadWeightFor(82.3, {})).toBe(82.3)
+    expect(skipsCardio(undefined)).toBe(false)
+    const S = { weekStart: 1 }
+    setDeloadEvery(S, 4, '2026-11-04')
+    setDeloadSets(S, 0); setDeloadDrop(S, 0); setDeloadCardio(S, 'keep')
+    expect(S.deloadCycle).toEqual({ every: 4, from: '2026-11-02' })
+  })
+
+  it('unknown or out-of-range values fall back to the default', () => {
+    expect(deloadCycleOf({ deloadCycle: { every: 4, sets: 11, drop: 61, cardio: 'yes' } })).toMatchObject({ sets: 0, drop: 0, cardio: 'keep' })
+    expect(deloadCycleOf({ deloadCycle: { sets: 0.5, drop: '50', cardio: 'skip' } })).toMatchObject({ sets: 0, drop: 0, cardio: 'skip' })
+    const S = { weekStart: 1 }
+    setDeloadSets(S, 12); setDeloadDrop(S, -5)
+    expect(S.deloadCycle).toBeUndefined()
+  })
+
+  it('sets 2 keeps two work sets, never more than the slot has', () => {
+    const c = { sets: 2 }
+    expect([3, 4, 2, 1].map(n => deloadSetsFor(n, c))).toEqual([2, 2, 2, 1])
+  })
+
+  it('drop 50 halves the work weight, rounded to 0.5, never below 0', () => {
+    const c = { drop: 50 }
+    expect(deloadWeightFor(100, c)).toBe(50)
+    expect(deloadWeightFor(81, c)).toBe(40.5)
+    expect(deloadWeightFor(0, c)).toBe(0)
+    expect(deloadWeightFor(40, { drop: 60 })).toBe(16)
+  })
+
+  it('rounds the cut DOWN to the exercise step, so the weight is loadable', () => {
+    expect(deloadWeightFor(81, { drop: 50 }, 2.5)).toBe(40)     // 40.5 down to 2.5 kg steps
+    expect(deloadWeightFor(80, { drop: 50 }, 2)).toBe(40)       // a 2 kg dumbbell step
+    expect(deloadWeightFor(82, { drop: 50 }, 5)).toBe(40)       // 41 down to 5 kg steps
+    expect(deloadWeightFor(100, { drop: 50 }, 0)).toBe(50)      // no usable step: 0.5
+    expect(deloadWeightFor(100, { drop: 0 }, 2.5)).toBe(100)    // no cut: untouched, not snapped
+  })
+
+  it('a weight that would round to 0 takes one step instead', () => {
+    expect(deloadWeightFor(4, { drop: 50 }, 2.5)).toBe(2.5)   // 2 kg cut, floors to 0: one step
+    expect(deloadWeightFor(2.5, { drop: 50 }, 2.5)).toBe(2.5) // never above the weight itself
+    expect(deloadWeightFor(0, { drop: 50 }, 2.5)).toBe(0)     // no weight stays no weight
+  })
+
+  it('cardio skip is read from the setting', () => {
+    expect(skipsCardio({ cardio: 'skip' })).toBe(true)
+    expect(skipsCardio({ cardio: 'keep' })).toBe(false)
+    const S = { weekStart: 1 }
+    setDeloadEvery(S, 4, '2026-11-04')
+    setDeloadCardio(S, 'skip')
+    expect(skipsCardio(S.deloadCycle)).toBe(true)
+    expect(deloadCycleOf(S).cardio).toBe('skip')
   })
 })

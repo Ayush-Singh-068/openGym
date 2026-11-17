@@ -14,6 +14,7 @@ import { warmupModeOf, ownRowsOf } from './warmup-ramp.js'
 import { EXIDX, canonicalExId, isBodyweightEq, isCustomEx } from './exercises.js'
 import { cleanBackups } from './routine-backups.js'
 import { cleanUrl } from './media-refs.js'
+import { cleanFolder } from './routine-folders.js'
 import { modeOf, exLine, MAX_PLANNED_WARMUPS } from './history.js'
 import { deriveSessionName } from './session-merge.js'
 import { isPyramid, normalizePyramid, normalizePyramidRest, normalizePyramidWeight } from './pyramid.js'
@@ -271,6 +272,8 @@ export function buildPlanBundle(S, name) {
     id: r.id, name: r.name, emoji: r.emoji,
     ...(r.prog ? { prog: r.prog } : {}),
     ...(r.excludeFromProgression === true ? { excludeFromProgression: true } : {}),
+    // The routine's folder travels too, so an export and an import keep the grouping.
+    ...(cleanFolder(r.folder) ? { folder: cleanFolder(r.folder) } : {}),
     ex: (r.ex || []).map(cleanEx)
   }))
   const usedIds = new Set(routines.flatMap(r => r.ex.map(e => e.id)))
@@ -324,8 +327,10 @@ export function parsePlan(raw, destinationUnit = 'kg') {
   const customEx = (Array.isArray(data.customEx) ? data.customEx : []).filter(c => c && c.id)
   const known = new Set(customEx.map(c => c.id))
   let dropped = 0
-  const routines = data.routines.filter(r => r && Array.isArray(r.ex)).map(r => ({
+  // A folder is cleaned like any typed name; one that is blank after cleaning is left out.
+  const routines = data.routines.filter(r => r && Array.isArray(r.ex)).map(({ folder, ...r }) => ({
     ...r,
+    ...(cleanFolder(folder) ? { folder: cleanFolder(folder) } : {}),
     ex: r.ex.filter(e => {
       const ok = !!e && (known.has(e.id) || !!EXIDX[e.id])
       if (!ok) dropped++
@@ -418,6 +423,7 @@ export function mergePlan(s, bundle, { schedule } = {}) {
       emoji: r.emoji,
       ...(r.prog ? { prog: r.prog } : {}),
       ...(r.excludeFromProgression === true ? { excludeFromProgression: true } : {}),
+      ...(cleanFolder(r.folder) ? { folder: cleanFolder(r.folder) } : {}),
       ex: (r.ex || []).map(e => ({ ...e, id: exIdMap[e.id] || canonicalExId(e.id) }))
     })
   })

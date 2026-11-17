@@ -479,7 +479,11 @@ function Routines({ S, update, nav }) {
       {routines.length > 0
         ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>
         : <span />}
-      <Button size="sm" variant="tinted" icon="plus" data-tour="plan-new" onClick={addRoutine}>{t('New routine')}</Button>
+      <div className="row plan-sec-acts" style={{ gap: 6 }}>
+        {/* Starter plans stay one tap away once there are routines; the empty state has its own. */}
+        {routines.length > 0 && <Button size="sm" variant="tinted" icon="clipboard" onClick={starterPlanSheet}>{t('Starter plans')}</Button>}
+        <Button size="sm" variant="tinted" icon="plus" data-tour="plan-new" onClick={addRoutine}>{t('New routine')}</Button>
+      </div>
     </div>
     {routines.length ? <>
       {edit

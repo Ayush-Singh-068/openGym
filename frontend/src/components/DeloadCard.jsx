@@ -6,7 +6,7 @@ import { todayISO, fmtDate, weekKey, weekStartOf } from '../lib/format.js'
 import { programmeStatus } from '../lib/programmes.js'
 import {
   deloadCycleOf, deloadWhy, nextDeloadWeek, deloadSuggestion, plusWeeks, pushBack, skipDeload, addDeload,
-  dismissSuggestion, setDeloadEvery, setDeloadAuto, EVERY_CHOICES, DELOAD_SET_SHARE,
+  dismissSuggestion, setDeloadEvery, setDeloadAuto, setDeloadSets, setDeloadDrop, setDeloadCardio, EVERY_CHOICES, DELOAD_SET_SHARE,
 } from '../lib/deload-cycle.js'
 import CardHead from './CardHead.jsx'
 import { Button, Row, Segmented, Switch } from './ui.jsx'
@@ -47,9 +47,21 @@ export function DeloadCard ({ S }) {
     </div>
   }
   const now = view.kind === 'now'
+  // With the default settings the title reads as it always did; a chosen set count, weight cut or
+  // skipped cardio is named instead of the fixed "fewer sets, same weights".
+  const cyc = deloadCycleOf(S)
+  const plain = !cyc.sets && !cyc.drop && cyc.cardio !== 'skip'
+  const detail = [
+    cyc.sets ? t('{0} sets per exercise.', cyc.sets) : t('{0}% fewer sets.', pct),
+    cyc.drop ? t('{0}% lighter weights.', cyc.drop) : t('Same weights.'),
+    cyc.cardio === 'skip' ? t('No cardio.') : null,
+  ].filter(Boolean).join(' ')
+  const title = plain
+    ? (now ? t('{0}% fewer sets, same weights. Recharge.', pct) : t('Next week runs {0}% fewer sets. Same weights.', pct))
+    : (now ? `${detail} ${t('Recharge.')}` : detail)
   return <div className="card deload-card" data-deload={view.kind}>
     <CardHead icon="battery" tint="var(--indigo)" eyebrow={now ? t('Deload week') : t('Next week: deload')}
-      title={now ? t('{0}% fewer sets, same weights. Recharge.', pct) : t('Next week runs {0}% fewer sets. Same weights.', pct)}
+      title={title}
       sub={now ? t('It stays out of your progression, so nothing goes up or down.') : t('Starts {0}.', fmtDate(view.wk))} />
     <div className="card-head-indent row" style={{ gap: 8, flexWrap: 'wrap' }}>
       <Button size="sm" variant="tinted" icon="calendar" onClick={() => act(s => pushBack(s, view.wk), t('Moved to the week of {0}.', fmtDate(plusWeeks(view.wk, 1))))}>{t('Push it back a week')}</Button>
@@ -75,5 +87,24 @@ export function DeloadRows () {
       subtitle={t('When your numbers dip two weeks running (and your check-ins say tired, if you log them), Home asks.')}>
       <Switch aria-label={t('Suggest a deload when I need one')} checked={c.auto} onChange={v => update(s => { setDeloadAuto(s, v) })} />
     </Row>
+    {(c.every > 0 || c.sets || c.drop || c.cardio === 'skip') && <>
+      <Row icon="battery" iconTint="var(--indigo)" title={t('Sets per exercise')}
+        subtitle={t('In a deload week. Fewer keeps the usual share of the sets.')}>
+        <Segmented className="seg-inline" value={String(c.sets)}
+          options={[{ value: '0', label: t('Fewer') }, { value: '2', label: '2' },
+            ...(c.sets && c.sets !== 2 ? [{ value: String(c.sets), label: String(c.sets) }] : [])]}
+          onChange={v => update(s => { setDeloadSets(s, Number(v)) })} />
+      </Row>
+      <Row icon="battery" iconTint="var(--indigo)" title={t('Weight')}
+        subtitle={t('In a deload week. Keep holds the weight where it was.')}>
+        <Segmented className="seg-inline" value={String(c.drop)}
+          options={[{ value: '0', label: t('Keep') }, { value: '40', label: '-40%' }, { value: '50', label: '-50%' }]}
+          onChange={v => update(s => { setDeloadDrop(s, Number(v)) })} />
+      </Row>
+      <Row icon="battery" iconTint="var(--indigo)" title={t('Skip cardio')}
+        subtitle={t('Leave the cardio slots out of a deload week.')}>
+        <Switch aria-label={t('Skip cardio')} checked={c.cardio === 'skip'} onChange={v => update(s => { setDeloadCardio(s, v ? 'skip' : 'keep') })} />
+      </Row>
+    </>}
   </>
 }

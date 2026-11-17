@@ -2,12 +2,16 @@
 // (lib/programmes.js); this is for everyone who just trains their routines: every N weeks one
 // lighter week, or one suggested when the numbers (and, if you log it, how you feel) say so.
 //
-//   S.deloadCycle = { every: 4..12 | 0, from: weekKey, auto: true, shift: [weekKey], extra: [weekKey], skip: [weekKey], dismissed: weekKey }
+//   S.deloadCycle = { every: 4..12 | 0, from: weekKey, auto: true, shift: [weekKey], extra: [weekKey], skip: [weekKey], dismissed: weekKey, sets: 0..10, drop: 0..60, cardio: 'keep' | 'skip' }
 //
 //   every      a deload every N weeks; 0 or no key: none on a schedule
 //   from       the week the count starts at (lib/format.js weekKey, the profile's week start):
 //              the deloads are the weeks from + N−1, from + 2N−1, …
 //   auto       suggest one when the signals below say so (on unless false)
+//   sets       work sets per exercise in a deload week: 0 = the usual share (60 %), or 1..10 = that
+//              many, never more than the slot has
+//   drop       percent the work-set weight is cut by in a deload week: 0 = keep the weight
+//   cardio     'skip' leaves cardio slots out of a deload week; 'keep' (default) trains them
 //   shift      scheduled deload weeks pushed back a week: that week trains as usual, the next one
 //              is the deload ("push it back a week", one tap)
 //   extra      weeks made a deload by hand or by saying yes to a suggestion
@@ -79,6 +83,9 @@ export function deloadCycleOf (S) {
     auto: c.auto !== false,
     shift: list(c.shift), extra: list(c.extra), skip: list(c.skip),
     dismissed: isISO(c.dismissed) ? c.dismissed : null,
+    sets: Number.isInteger(c.sets) && c.sets >= 1 && c.sets <= 10 ? c.sets : 0,
+    drop: Number.isInteger(c.drop) && c.drop >= 1 && c.drop <= 60 ? c.drop : 0,
+    cardio: c.cardio === 'skip' ? 'skip' : 'keep',
   }
 }
 
@@ -88,6 +95,9 @@ const write = (s, c) => {
   if (c.auto === false) out.auto = false
   for (const k of ['shift', 'extra', 'skip']) if (c[k]?.length) out[k] = list(c[k])
   if (c.dismissed) out.dismissed = c.dismissed
+  if (c.sets) out.sets = c.sets
+  if (c.drop) out.drop = c.drop
+  if (c.cardio === 'skip') out.cardio = 'skip'
   if (Object.keys(out).length) s.deloadCycle = out
   else delete s.deloadCycle
 }
@@ -105,6 +115,25 @@ export function setDeloadEvery (s, every, today = todayISO()) {
 }
 
 export function setDeloadAuto (s, on) { const c = deloadCycleOf(s); c.auto = !!on; write(s, c) }
+
+/** Work sets per exercise in a deload week: 0 for the usual share, or 1..10. */
+export function setDeloadSets (s, sets) {
+  const c = deloadCycleOf(s)
+  const n = Math.round(Number(sets)) || 0
+  c.sets = n >= 1 && n <= 10 ? n : 0
+  write(s, c)
+}
+
+/** Percent the work-set weight is cut by in a deload week: 0 keeps it, or 1..60. */
+export function setDeloadDrop (s, pct) {
+  const c = deloadCycleOf(s)
+  const n = Math.round(Number(pct)) || 0
+  c.drop = n >= 1 && n <= 60 ? n : 0
+  write(s, c)
+}
+
+/** 'skip' takes cardio out of a deload week; anything else keeps it. */
+export function setDeloadCardio (s, mode) { const c = deloadCycleOf(s); c.cardio = mode === 'skip' ? 'skip' : 'keep'; write(s, c) }
 
 /* ---------- which weeks ---------- */
 
@@ -170,6 +199,41 @@ export function dismissSuggestion (s, today = todayISO()) { const c = deloadCycl
 
 /** How many work sets a deload week keeps of `sets`. */
 export const deloadSets = sets => Math.max(1, Math.round((Math.max(1, Number(sets) || 1)) * DELOAD_SET_SHARE))
+
+// The settings a deload week uses, cleaned. Takes the raw S.deloadCycle or a cleaned one.
+const deloadFields = cycle => deloadCycleOf({ deloadCycle: cycle })
+
+/**
+ * How many work sets one exercise keeps in a deload week, given its slot's `n` sets. With no
+ * `sets` chosen this is today's share (deloadSets). Otherwise it is that many, never more than the
+ * slot already has: a 1-set slot stays at 1.
+ */
+export function deloadSetsFor (n, cycle) {
+  const c = deloadFields(cycle)
+  if (!c.sets) return deloadSets(n)
+  return Math.max(1, Math.min(c.sets, Math.max(1, Number(n) || 1)))
+}
+
+/**
+ * The weight a work set takes in a deload week. `drop` 0 keeps it exactly as given. Otherwise it is
+ * cut by that percent and rounded DOWN to a multiple of `step` (the exercise's own increment, so the
+ * result is a weight the lifter can load), never below 0 and never heavier than the cut. Without a
+ * usable step it uses 0.5.
+ */
+export function deloadWeightFor (weight, cycle, step = 0.5) {
+  const c = deloadFields(cycle)
+  const w = Number(weight)
+  if (!c.drop || !(w > 0)) return weight
+  const inc = Number(step) > 0 ? Number(step) : 0.5
+  const cut = w * (1 - c.drop / 100)
+  // The small epsilon keeps a cut that lands on a step (40 / 2 = 20) from floating just under it.
+  const down = Math.round(Math.floor(cut / inc + 1e-9) * inc * 1000) / 1000
+  // A positive weight never drops to 0: it takes one step (or the weight itself, if that is lighter).
+  return down > 0 ? down : Math.min(inc, w)
+}
+
+/** Whether a deload week leaves the cardio slots out of the session. */
+export function skipsCardio (cycle) { return deloadFields(cycle).cardio === 'skip' }
 
 /* ---------- the automatic trigger ---------- */
 

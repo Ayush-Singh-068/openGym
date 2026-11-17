@@ -177,6 +177,25 @@ describe('starter plan chooser, fitted to equipment', () => {
   })
 })
 
+describe('loadStarterPlan folders', () => {
+  it('puts every routine the plan adds in a folder named after the plan', () => {
+    loadStarterPlan('upper-lower')
+    const added = S().routines.filter(r => r.id !== 'mine')
+    expect(added.map(r => r.name)).toEqual(['Upper A', 'Lower A', 'Upper B', 'Lower B'])
+    expect(added.every(r => r.folder === 'Upper / Lower')).toBe(true)
+    expect(S().routines[0]).not.toHaveProperty('folder')   // the routine you had is untouched
+  })
+
+  it('gives a reused routine the folder when it has none, and keeps one it already has', () => {
+    loadStarterPlan('upper-lower')
+    useStore.setState(s => ({ S: { ...s.S, routines: s.S.routines.map(r => (r.name === 'Upper A' ? { ...r, folder: undefined } : r.name === 'Lower A' ? { ...r, folder: 'Mine' } : r)) } }))
+    loadStarterPlan('upper-lower')
+    expect(S().routines.filter(r => r.name === 'Upper A')).toHaveLength(1)
+    expect(S().routines.find(r => r.name === 'Upper A').folder).toBe('Upper / Lower')
+    expect(S().routines.find(r => r.name === 'Lower A').folder).toBe('Mine')
+  })
+})
+
 describe('loadStarterPlan', () => {
   it('two different plans add independent routines', () => {
     loadStarterPlan('ppl')

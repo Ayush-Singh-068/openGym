@@ -413,3 +413,45 @@ describe('distance work in a shared plan (night QA 146)', () => {
     expect(carry[1].reps).toBeUndefined()
   })
 })
+
+describe('routine folders in a shared plan', () => {
+  const withFolder = folder => ({
+    routines: [{ id: 'r1', name: 'Push', ...(folder === undefined ? {} : { folder }), ex: [{ id: '0025', sets: 3, reps: 5 }] }],
+    week: {}, customEx: [],
+  })
+  const viaFile = state => parsePlan(JSON.stringify(buildPlanBundle(state, 'Plan')))
+  const intoEmpty = parsed => {
+    const s = { routines: [], week: {}, customEx: [], unit: 'kg' }
+    mergePlan(s, parsed)
+    return s
+  }
+
+  it('keeps the folder through export, parse and merge into an empty state', () => {
+    const parsed = viaFile(withFolder('Push / Pull / Legs'))
+    expect(parsed.routines[0].folder).toBe('Push / Pull / Legs')
+    expect(intoEmpty(parsed).routines[0].folder).toBe('Push / Pull / Legs')
+  })
+
+  it('leaves the folder out of a routine that has none', () => {
+    const parsed = viaFile(withFolder(undefined))
+    expect(parsed.routines[0]).not.toHaveProperty('folder')
+    expect(intoEmpty(parsed).routines[0]).not.toHaveProperty('folder')
+  })
+
+  it('cleans an over-long folder to 40 characters on the way in', () => {
+    const long = 'x'.repeat(60)
+    const parsed = parsePlan(JSON.stringify({ opengym_plan: 1, unit: 'kg', name: 'P', week: {}, customEx: [],
+      routines: [{ id: 'r1', name: 'A', folder: long, ex: [{ id: '0025', sets: 3, reps: 5 }] }] }))
+    expect(parsed.routines[0].folder).toBe('x'.repeat(40))
+    expect(intoEmpty(parsed).routines[0].folder).toBe('x'.repeat(40))
+  })
+
+  it('omits a blank folder, and one that is only control characters or spaces', () => {
+    for (const folder of ['', '   ', '\u0001\t']) {
+      const parsed = parsePlan(JSON.stringify({ opengym_plan: 1, unit: 'kg', name: 'P', week: {}, customEx: [],
+        routines: [{ id: 'r1', name: 'A', folder, ex: [{ id: '0025', sets: 3, reps: 5 }] }] }))
+      expect(parsed.routines[0]).not.toHaveProperty('folder')
+      expect(intoEmpty(parsed).routines[0]).not.toHaveProperty('folder')
+    }
+  })
+})

@@ -12,7 +12,7 @@ import { dbLoadFor, historyAs, ownedWeightsFor, withMeaning } from './dumbbells.
 import { isAssisted } from './exercises.js'
 import { sessionHistory } from './backfill.js'
 import { programmeSlot, pctWeight, programmeStatus } from './programmes.js'
-import { isDeloadDay, deloadSets } from './deload-cycle.js'
+import { isDeloadDay, deloadSetsFor, deloadWeightFor, skipsCardio, deloadCycleOf } from './deload-cycle.js'
 import { todayISO } from './format.js'
 import { exConverted, exView, viewTarget, storedTarget, storedRow } from './ex-unit.js'
 import { warmupSource, warmupModeOf, withWarmupBlock } from './warmup-ramp.js'
@@ -99,6 +99,25 @@ export function buildPlannedEntry(stored, cfg, routine, opts) {
   return inExUnit(stored, cfg, (st, c) => planEntry(st, c, routine, opts))
 }
 
+// The line a deload week shows over its first set. With the default settings it reads as it always
+// has; a chosen set count, weight cut or skipped cardio is named in its place. Arrays are translated
+// by the screen that shows them, so the parts are templates with their own values.
+function deloadWhyOf (n, max, c) {
+  if (!c.sets && !c.drop && c.cardio !== 'skip') return ['Deload week: {0} of {1} sets, same weight. Lighter on purpose.', n, max]
+  const args = []
+  const part = (text, ...vals) => {
+    const at = args.length
+    args.push(...vals)
+    return text.replace(/\{(\d)\}/g, (_, i) => '{' + (at + Number(i)) + '}')
+  }
+  const pieces = [
+    c.sets ? part('{0} sets per exercise.', n) : part('{0} of {1} sets.', n, max),
+    c.drop ? part('{0}% lighter weights.', c.drop) : part('Same weight.'),
+    ...(c.cardio === 'skip' ? [part('No cardio.')] : []),
+  ]
+  return ['Deload week: ' + pieces.join(' '), ...args]
+}
+
 function planEntry(stored, cfg, routine, { noProg = false } = {}) {
   // What a dumbbell weight means for this exercise today (lib/dumbbells.js): the history it
   // progresses from is read in that meaning, so a switch from "40 total" to per bell opens at
@@ -119,16 +138,26 @@ function planEntry(stored, cfg, routine, { noProg = false } = {}) {
   // the weight and reps where they were, and the session kept out of progression (the caller
   // reads `deload`). Only a lifting exercise of a routine; a timed hold or cardio trains as usual.
   const iso = stored?.active?.d || todayISO()
-  const cycle = !noProg && !slot && !!routine && modeOf(cfg) === 'reps' && !(Array.isArray(cfg.pyramid) && cfg.pyramid.length)
+  // A timed hold joins only when the plan chose a set count (cycle.sets); with the default it trains as usual.
+  const mode = modeOf(cfg)
+  const cycle = !noProg && !slot && !!routine && (mode === 'reps' || (mode === 'time' && deloadCycleOf(stored).sets > 0))
+    && !(Array.isArray(cfg.pyramid) && cfg.pyramid.length)
     && isDeloadDay(stored, iso, !!programmeStatus(stored, iso)?.current)
   if (cycle) {
     const lastW = sessionsFor(st, cfg.id, cfg, routine?.id).filter(x => x.mode === 'reps').at(-1)?.weight
-    const n = deloadSets(cfg.sets)
+    const n = deloadSetsFor(cfg.sets, stored.deloadCycle)
+    // The work weight a deload week opens at: the last session's (or the policy's, or the routine's),
+    // cut by the chosen percent (lib/deload-cycle.js deloadWeightFor). The warm-up ramp is a share of
+    // this weight, so it follows without a second cut.
+    const base = lastW > 0 ? lastW : plan.weight != null && plan.kind !== 'up' ? plan.weight : cfg.weight > 0 ? cfg.weight : null
+    // Rounded down to the exercise's own step (step: weightIncrement above), so it is loadable.
+    const weight = base != null && base > 0 ? deloadWeightFor(base, stored.deloadCycle, step) : base
     plan = {
       policy: plan.policy, kind: 'deloadweek', sets: n,
-      ...(lastW > 0 ? { weight: lastW } : plan.weight != null && plan.kind !== 'up' ? { weight: plan.weight } : cfg.weight > 0 ? { weight: cfg.weight } : {}),
+      ...(weight != null ? { weight } : {}),
       ...(cfg.reps > 0 ? { reps: cfg.reps } : {}),
-      why: ['Deload week: {0} of {1} sets, same weight. Lighter on purpose.', n, Math.max(1, cfg.sets || 1)],
+      ...(mode === 'time' && (plan.sec ?? cfg.sec) > 0 ? { sec: plan.sec ?? cfg.sec } : {}),
+      why: deloadWhyOf(n, Math.max(1, cfg.sets || 1), deloadCycleOf(stored)),
       prog: { deload: true },
     }
   }
@@ -304,13 +333,21 @@ export function buildSessionEntries(st, r) {
   // The prescription is applied as the session is built, so you walk up to the bar with the
   // right weight already on the screen instead of being told about it afterwards.
   const noProg = r?.excludeFromProgression === true
-  const entries = (r ? r.ex : []).map(cfg => {
+  // A scheduled deload week set to skip cardio leaves the cardio slots out of the session. Only
+  // that week, and only a lifting routine: a programme's own weeks and a deload routine are unchanged.
+  const iso = st?.active?.d || todayISO()
+  // A routine with nothing but cardio keeps it: a deload day never starts an empty session.
+  const cardioOff = !!r && !noProg && isDeloadDay(st, iso, !!programmeStatus(st, iso)?.current) && skipsCardio(st?.deloadCycle)
+  const lifting = r ? r.ex.filter(cfg => modeOf(cfg) !== 'cardio') : []
+  const skipCardio = cardioOff && lifting.length > 0
+  const slots = r ? (skipCardio ? lifting : r.ex) : []
+  const entries = slots.map(cfg => {
     const { deload, ...built } = buildPlannedEntry(st, cfg, r, { noProg })
     // A programme's deload week stays out of progression, as a deload routine does.
     return { id: cfg.id, sg: cfg.sg, ...built, ...(noProg || deload ? { noProg: true } : {}) }
   })
   // The rows a coach or planner set for this routine on this day (#972, lib/session-targets.js),
   // in place of the prescription's; the routine and its targets stay what they built.
-  return withSessionTarget(st, r, entries, st?.active?.d || todayISO(), TARGET_HELPERS)
+  return withSessionTarget(st, skipCardio ? { ...r, ex: slots } : r, entries, iso, TARGET_HELPERS)
 }
 const TARGET_HELPERS = { modeOf, isPerSide }

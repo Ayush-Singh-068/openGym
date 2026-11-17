@@ -2,6 +2,7 @@ import { tempoSheet } from './components/Tempo.jsx'
 import { useCircuit } from './store/useCircuit.js'
 import { CircuitResults } from './components/CircuitCard.jsx'
 import { normalizeTempo, repSec } from './lib/tempo.js'
+import { cleanFolder } from './lib/routine-folders.js'
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { exView, exUnitPin, exUnitOf, exUnitTag, withExUnit, profileUnit, viewTarget, storedTarget, storedBar, viewEntry, viewRow, shownWeight } from './lib/ex-unit.js'
@@ -72,6 +73,7 @@ import { aliasMatches, choiceOpts, combineNames, rememberPicks } from './lib/imp
 import ImportChoices, { freshChoices, choicesChanged } from './components/ImportChoices.jsx'
 import { buildPlanBundle, buildProgrammeBundle, parsePlan, mergePlan } from './lib/plan-share.js'
 import { SIX_DAY_PPL } from './lib/plans/six-day-ppl.js'
+import { applySixDayPpl } from './lib/plans/load-six-day-ppl.js'
 import PrintPlanSheet from './components/PrintPlanSheet.jsx'
 import { printWorkout } from './lib/report-print.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP, formulaOf, FORMULA_NAMES } from './lib/onerm.js'
@@ -282,6 +284,8 @@ const PLAN_COPY = {
 export function loadStarterPlan(planId, profile) {
   const plan = buildStarterPlan(planId, profile ? profileEquipment(profile) : undefined, profileMachines(profile))
   if (!plan) return false
+  // Every routine a starter plan adds sits in a folder named after the plan (Plan groups them).
+  const folder = cleanFolder(PLAN_COPY[planId]().name)
   update(st => {
     // Loading the same plan again reuses the routines it added last time (same name, same
     // exercises) for the weekdays instead of a second Upper A, Lower A, ... under the same names.
@@ -290,8 +294,11 @@ export function loadStarterPlan(planId, profile) {
     const sameLift = (a, b) => a.ex.length === b.ex.length && a.ex.every((e, i) => e.id === b.ex[i].id)
     plan.routines.forEach(r => {
       const have = st.routines.find(x => x.name === r.name && sameLift(x, r))
-      if (have) idOf[r.id] = have.id
-      else { st.routines.push(r); idOf[r.id] = r.id }
+      if (have) {
+        // A routine reused from an earlier load gets the folder too, unless it already has one.
+        if (!cleanFolder(have.folder)) have.folder = folder
+        idOf[r.id] = have.id
+      } else { st.routines.push({ ...r, folder }); idOf[r.id] = r.id }
     })
     plan.schedule.forEach(({ day, routineId }) => { st.week[day] = [idOf[routineId]] })
   })
@@ -336,7 +343,11 @@ function StarterPlanChooser({ close }) {
     <div className="list">
       <div className="item" data-plan="six-day-ppl" {...tappable(() => {
         close()
-        try { planImportSheet(parsePlan(SIX_DAY_PPL, S().unit || 'kg')) }
+        try { planImportSheet(parsePlan(SIX_DAY_PPL, S().unit || 'kg'), { apply: applySixDayPpl, schedule: true, extra: [
+          t('Your exercise names are shown exactly as in your plan. Exercises the catalogue does not have are added as your own.'),
+          t('Deload every 6th week: 2 sets per exercise, 50% lighter weights, no cardio. Change it in Settings.'),
+          t('The Reduced Volume days go into their own folder and are not on the schedule.'),
+        ] }) }
         catch { ui().toast(t('Couldn’t read that file.')) }
       })}>
         <span className="lrow-i" style={{ background: 'var(--surface-3)' }}><Icon name="clipboard" /></span>
@@ -2702,7 +2713,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     // Free text, e.g. a pyramid's per-set loading ("bar only, +1 plate/side each set") — the
     // sets/reps/weight fields are one flat target and have no room for that on their own.
     // Mode-independent, so it is spread in below rather than folded into `flags`.
-    const note = (c.note || '').trim().slice(0, 500)
+    const note = (c.note || '').trim().slice(0, NOTE_MAX)
     const withNote = note ? { note } : {}
     // Only written when there are any, so a plan that never asked for warm-ups keeps the exact
     // shape it had — and reads back as 0 either way (buildSets).
@@ -3348,12 +3359,14 @@ export function importPlanFile(f, onRead) {
   rd.readAsText(f)
 }
 
-export const planImportSheet = bundle => ui().openSheet(close => <PlanImport bundle={bundle} close={close} />)
+// opts: `apply` replaces the plain merge (a built-in plan adds more than its routines), `schedule`
+// is the switch's start, `extra` is plain lines shown under the explanation.
+export const planImportSheet = (bundle, opts = {}) => ui().openSheet(close => <PlanImport bundle={bundle} close={close} opts={opts} />)
 
-function PlanImport({ bundle, close }) {
-  const [schedule, setSchedule] = useState(false)
+function PlanImport({ bundle, close, opts = {} }) {
+  const [schedule, setSchedule] = useState(!!opts.schedule)
   const apply = () => {
-    update(s => mergePlan(s, bundle, { schedule }))
+    update(s => (opts.apply ? opts.apply(s, bundle, { schedule }) : mergePlan(s, bundle, { schedule })))
     close()
     toast(tn('Added {0} routine to your plan', 'Added {0} routines to your plan', bundle.routineCount))
     nav('/plan')
@@ -3370,6 +3383,7 @@ function PlanImport({ bundle, close }) {
       {bundle.programmes?.length > 0 ? ' · ' + tn('{0} programme', '{0} programmes', bundle.programmes.length) : ''}
     </div>
     <div className="dim small" style={{ marginBottom: 14, lineHeight: 1.4 }}>{t('These are added as new routines. Nothing you already have is touched.')}</div>
+    {opts.extra?.map((line, i) => <div key={i} className="dim small" style={{ marginBottom: 14, lineHeight: 1.4 }}>{line}</div>)}
     {bundle.dropped > 0 && <div className="small" style={{ color: 'var(--gold-ink)', marginBottom: 14, lineHeight: 1.4 }}>
       {t(bundle.dropped === 1
         ? '{0} exercise in the file isn’t in your library and was left out.'
