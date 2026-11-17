@@ -4,6 +4,12 @@
 import pt from './pt.js'
 
 export const PT_BR_OVERRIDES = {
+  // --- Starting weights after loading a plan ---
+  "What do you lift now?": "What do you lift now?",
+  "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.": "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.",
+  "Save weights": "Save weights",
+  "Skip for now": "Skip for now",
+  "Starting weights saved": "Starting weights saved",
   "+ {0} more change": "+ mais {0} alteração",
   "+ {0} more changes": "+ mais {0} alterações",
   // --- Settings first screen in groups (#1105); "Watches" (Relógios) is inherited ---

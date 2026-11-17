@@ -95,7 +95,7 @@ const gainedWorkoutMedia = (prev, next) => {
   return workoutMediaHashes(next).some(h => !had.has(h))
 }
 export const DEF = {
-  unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, soundOnSilent: false, vibrateOnSilent: false, timerFlash: false, timedSetOvertime: false, keepAwake: true, lang: 'en',
+  unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, soundVolume: 1, soundCues: {}, soundOnSilent: false, vibrateOnSilent: false, timerFlash: false, timedSetOvertime: false, keepAwake: true, lang: 'en',
   // accent: the old iOS green on purpose. A loaded copy that never picked one (saved before accents,
   // a server document, a backup) keeps the green it always had; a new profile starts on the
   // brand's green instead (freshState, lib/accent.js NEW_ACCENT).
@@ -141,7 +141,7 @@ export const DEF = {
   // presentational: profiles written before this setting existed overlay onto DEF and keep the
   // 'cards' behaviour. beginWorkout copies the value onto s.active, so the header ⋮ menu can
   // override it for the running session without touching this saved default.
-  workoutView: 'cards',
+  workoutView: LOCAL_BUILD ? 'list' : 'cards',
   // List and Compact fold a finished exercise into one line (Settings → Workout; #241). The
   // workout's Layout menu can flip it for the running session (s.active.collapseCompleted).
   collapseCompleted: false,
@@ -2281,7 +2281,7 @@ export const useStore = create((set, get) => {
         // What localStorage already holds goes into the second copy at once, not at the next change.
         if (hasData(get().S)) scheduleMirror(stateJson(get().S), get().S._ts || 0)
         // Trainer defaults, once per profile (lib/next-targets.js): the flag makes later boots a no-op.
-        get().update(s => { if (s.trainerDefaultsV1 !== true) applyTrainerDefaults(s) })
+        get().update(s => { if (s.trainerDefaultsV1 !== true || s.layoutV2 !== true) applyTrainerDefaults(s) })
         keepStorage()
         initFolderBackup()
         if (WEB_COACH) { try { set({ coachLocal: coachDeviceSettings(await loadCoachDevice()) }) } catch { /* no device file yet */ } }

@@ -1,5 +1,11 @@
 // Persian UI strings. Keys are the English source strings.
 export default {
+  // --- Starting weights after loading a plan ---
+  "What do you lift now?": "What do you lift now?",
+  "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.": "Enter the weight you use for each main lift so your first workout already shows real numbers. Leave a lift at 0 to set it later.",
+  "Save weights": "Save weights",
+  "Skip for now": "Skip for now",
+  "Starting weights saved": "Starting weights saved",
   "+ {0} more change": "+ {0} تغییر دیگر",
   "+ {0} more changes": "+ {0} تغییر دیگر",
   // --- Settings first screen in groups (#1105) ---
@@ -5865,4 +5871,17 @@ export default {
   "Preview on": "پیش‌نمایش روی",
   // 1.4.5 UX round, P2: timed holds in the finish summary (next hold is shorter)
   "shorter": "کمی کوتاه‌تر",
+  // --- Sound cues and volume ---
+  "Sound cues": "Sound cues",
+  "Sound volume": "Sound volume",
+  "Preview": "Preview",
+  "Last set": "Last set",
+  "Superset switch": "Superset switch",
+  "Sounds play while the screen is on. A locked iPhone cannot play them, so the app keeps your screen awake during a workout.": "Sounds play while the screen is on. A locked iPhone cannot play them, so the app keeps your screen awake during a workout.",
+  "Two quick rising notes: the same exercise again. Off plays your rest sound.": "Two quick rising notes: the same exercise again. Off plays your rest sound.",
+  "Three rising notes: a different exercise is next. Off plays your rest sound.": "Three rising notes: a different exercise is next. Off plays your rest sound.",
+  "Low, high, low: the next set is the last of its exercise. Off plays your rest sound.": "Low, high, low: the next set is the last of its exercise. Off plays your rest sound.",
+  "One bright tick: on to the other exercise of the superset. Off plays your rest sound.": "One bright tick: on to the other exercise of the superset. Off plays your rest sound.",
+  "A soft tick when 10 seconds of rest are left. Off keeps it silent.": "A soft tick when 10 seconds of rest are left. Off keeps it silent.",
+  "A short fanfare when every set is done. Off keeps it silent.": "A short fanfare when every set is done. Off keeps it silent.",
 }

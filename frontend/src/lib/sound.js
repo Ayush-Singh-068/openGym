@@ -25,6 +25,14 @@ let audioCtx = null
 let idleTm = null
 let idleAt = 0
 
+// Master volume (Settings → Timer alerts → Sound cues → Sound volume, S.soundVolume): 0 to 1, a
+// multiplier of every tone's peak gain in tone() below, so it covers the rest sounds, the ticks,
+// the tempo guide and the cues alike. App.jsx applies it on load and on change. Anything that
+// is not a number counts as full volume.
+let masterVolume = 1
+export function setMasterVolume(v) { masterVolume = typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1 }
+export const getMasterVolume = () => masterVolume
+
 const ctxFor = () => {
   if (!audioCtx || audioCtx.state === 'closed') audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   return audioCtx
@@ -81,8 +89,11 @@ const tone = (freq, dur, when, { peak = 0.35, hold = 0, bright = false, timbre =
   o.frequency.value = freq
   if (glide > 0) { o.frequency.setValueAtTime(freq, t0); o.frequency.linearRampToValueAtTime(glide, t0 + dur) }
   g.gain.setValueAtTime(0.001, t0)
-  g.gain.exponentialRampToValueAtTime(peak, t0 + 0.02)
-  if (hold > 0) g.gain.setValueAtTime(peak, t0 + dur * hold)
+  // The master volume scales the peak. An exponential ramp cannot reach 0, so the quietest
+  // a tone gets is the 0.001 floor it starts from, which nobody can hear.
+  const level = Math.max(0.001, peak * masterVolume)
+  g.gain.exponentialRampToValueAtTime(level, t0 + 0.02)
+  if (hold > 0) g.gain.setValueAtTime(level, t0 + dur * hold)
   g.gain.exponentialRampToValueAtTime(0.001, t0 + dur)
   o.start(t0); o.stop(t0 + dur + 0.05)
   sleepAfter(when + dur + 0.05)
@@ -184,6 +195,22 @@ export function chime(enabled, kind) {
   try {
     for (const [freq, dur, when, glide] of snd.notes) {
       tone(freq, dur, when, snd === REST_SOUNDS.classic ? {} : { peak: snd.peak, hold: snd.hold, timbre: snd.timbre, glide })
+    }
+  } catch (e) { /* */ }
+}
+
+// A run of notes played now, for the sound cues (lib/cue-sounds.js). Each note is
+// { freq (Hz), at (ms from now), dur (ms), peak (0 to 1, before the master volume), wave }, where
+// wave is 'sine' or one of TIMBRES ('bright'). `volume` (0 to 1) scales the peaks once more, on top
+// of the master volume. Nothing here checks the Sounds switch: the caller does (cueEnabled and
+// S.sound in lib/cue-sounds.js playCueIf). A browser that cannot make sound makes none.
+export function playTones(notes, { volume = 1 } = {}) {
+  if (!Array.isArray(notes) || !notes.length) return
+  const v = typeof volume === 'number' && Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1
+  try {
+    for (const n of notes) {
+      const sine = !n.wave || n.wave === 'sine'
+      tone(n.freq, n.dur / 1000, n.at / 1000, { peak: (typeof n.peak === 'number' ? n.peak : 0.35) * v, hold: sine ? 0 : 0.6, timbre: sine ? null : n.wave })
     }
   } catch (e) { /* */ }
 }

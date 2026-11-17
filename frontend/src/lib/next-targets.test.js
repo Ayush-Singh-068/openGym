@@ -26,7 +26,7 @@ describe('applyTrainerDefaults', () => {
   it('moves a profile once: starts from last, and sets the flag', () => {
     const S = { startFrom: 'plan' }
     expect(applyTrainerDefaults(S)).toBe(true)
-    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true })
+    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true, layoutV2: true, workoutView: 'list' })
   })
 
   it('a second call does nothing, so a later choice of plan is kept', () => {
@@ -39,6 +39,45 @@ describe('applyTrainerDefaults', () => {
 
   it('tolerates no state', () => {
     expect(applyTrainerDefaults(null)).toBe(false)
+  })
+})
+
+describe('applyTrainerDefaults: the List layout (layoutV2)', () => {
+  it('moves a profile on Cards to List once, and sets the flag', () => {
+    const S = { workoutView: 'cards' }
+    expect(applyTrainerDefaults(S)).toBe(true)
+    expect(S.workoutView).toBe('list')
+    expect(S.layoutV2).toBe(true)
+  })
+
+  it('moves a profile with no layout saved to List', () => {
+    const S = {}
+    applyTrainerDefaults(S)
+    expect(S.workoutView).toBe('list')
+  })
+
+  it('leaves Focus and Compact alone, but still sets the flag', () => {
+    for (const view of ['focus', 'compact']) {
+      const S = { workoutView: view }
+      expect(applyTrainerDefaults(S)).toBe(true)
+      expect(S.workoutView).toBe(view)
+      expect(S.layoutV2).toBe(true)
+    }
+  })
+
+  it('a profile already past the first trainer defaults still gets the layout, and keeps its own start choice', () => {
+    const S = { startFrom: 'plan', trainerDefaultsV1: true, workoutView: 'cards' }
+    expect(applyTrainerDefaults(S)).toBe(true)
+    expect(S.workoutView).toBe('list')
+    expect(S.startFrom).toBe('plan')
+  })
+
+  it('does it once: a later pick of Cards is kept', () => {
+    const S = { workoutView: 'cards' }
+    applyTrainerDefaults(S)
+    S.workoutView = 'cards'
+    expect(applyTrainerDefaults(S)).toBe(false)
+    expect(S.workoutView).toBe('cards')
   })
 })
 

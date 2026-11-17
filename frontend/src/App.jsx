@@ -12,7 +12,8 @@ import { accentValue, applyAccent } from './lib/accent.js'
 import { seasonAccent } from './lib/seasonal.js'
 import { setLang, useLang, baseLang, t } from './lib/i18n.js'
 import { effectiveLang } from './lib/default-lang.js'
-import { setPlayOnSilent, setVibrate, setAlarmBuzzer, setNativeBuzzer } from './lib/sound.js'
+import { setPlayOnSilent, setVibrate, setAlarmBuzzer, setNativeBuzzer, setMasterVolume } from './lib/sound.js'
+import { volumeOf } from './lib/cue-sounds.js'
 import { setKnownBands } from './lib/bands.js'
 import { buzzAsAlarm } from './lib/rest-alert.js'
 import { setNav, notePath, keyBefore, navToWorkout, nav } from './lib/nav.js'
@@ -164,6 +165,8 @@ function Shell() {
   setKnownBands(S.bands)
   // Settings → Vibrate, the same way: one page-level switch rather than a check at each buzz.
   useEffect(() => { setVibrate(S.vibrate !== false) }, [S.vibrate])
+  // Settings → Timer alerts → Sound volume: one master volume for every tone (lib/sound.js), applied the same way.
+  useEffect(() => { setMasterVolume(volumeOf(S)) }, [S.soundVolume])
   // Android app: "Vibrate when the phone is on silent" sends the end-of-rest buzz through the
   // native side as an alarm (#375). buzzAsAlarm answers false off Android, so iOS buzzes as before.
   useEffect(() => { setAlarmBuzzer(MOBILE && S.vibrate !== false && S.vibrateOnSilent ? buzzAsAlarm : null) }, [S.vibrate, S.vibrateOnSilent])

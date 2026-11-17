@@ -207,7 +207,7 @@ function FoldNote({ text }) {
   </div>
 }
 
-function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onKeepWarmups, onAskCoach, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
   // The block reads the state as its exercise sees it (lib/ex-unit.js): in the exercise's own
   // weight unit when it has one (#657), so its rows, steppers, plates, owned weights, "last time"
   // and records all speak that unit. Every change goes through inEntryUnit or the parent's
@@ -226,6 +226,9 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
   // Rows are keyed by index: one added or removed above would put the player under another set.
   const rowCount = entry?.sets?.length
   useEffect(() => { setVideoAt(null) }, [rowCount])
+  // The lean layouts (List, Compact) fold the warm-up ramp into one line. null means "not chosen
+  // yet": the ramp then starts open only when one of its rungs is already ticked.
+  const [rampPick, setRampPick] = useState(null)
   // Drops/bursts mutate the row in place — same card, not a new set with its own long rest.
   // A planned exercise (see the exercise's "Intensifier" config) arrives with these already
   // filled in by applyIntensifierPlan; these only add/edit/remove entries live from here on.
@@ -681,6 +684,25 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
   const several = !!(compact || listed)
   const exSay = S.active.entries.filter(x => x.id === entry.id).length > 1 ? `${entryIdx + 1}. ${exerciseNameText(ex)}` : exerciseNameText(ex)
   const inEx = label => (several ? label + ', ' + said(exSay) : label)
+  // List and Compact (lean): the ramp is one summary line, "Ramp-up · bar×10 · 40%×6-8", and a tap
+  // opens the rungs as tickable rows. The weight shows in place of the percent once it is known.
+  // The rungs stay in the entry, so ticking, rests and the saved workout work exactly as before.
+  const leanOn = !!lean && !editing
+  const rungRows = leanOn ? entry.sets.filter(x => isWarmupRow(x) && isRungRow(x)) : []
+  const rampOpen = rampPick ?? rungRows.some(x => x.done === true)
+  const rungText = x => {
+    const w = x.sides ? Math.max(Number(x.sides.L?.w) || 0, Number(x.sides.R?.w) || 0) : Number(x.w) || 0
+    const reps = x.rMin ? x.rMin + '-' + rungReps(x) : String(rungReps(x))
+    const head = x.wb ? t('bar') : x.wp === 0 ? t('BW') : w > 0 ? fmtNum(w) : x.wp + '%'
+    return head + '×' + reps
+  }
+  const rampText = t('Ramp-up') + ' · ' + rungRows.map(rungText).join(' · ')
+  const rampSummary = rungRows.length ? <button type="button" className="rampsum" aria-expanded={rampOpen}
+    aria-label={inEx(rampText)} onClick={() => setRampPick(!rampOpen)}>
+    {/* Each part keeps together, so a long ramp wraps between rungs and never inside one. */}
+    <span className="rampsum-t">{[t('Ramp-up'), ...rungRows.map(rungText)].map((p, i) => <Fragment key={i}>{i ? ' ' : ''}<span className="rampsum-p">{i ? '· ' : ''}{p}</span></Fragment>)}</span>
+    <Icon name="chevronDown" />
+  </button> : null
   const inSet = (s, i, label, side) => inEx(nameIn(setSay(s, i, side), label))
   // A drop or a burst under a row: "Set 2: Drop 1: Reps".
   const subSay = (s, i, sub, label, side) => inSet(s, i, label ? nameIn(sub, label) : sub, side)
@@ -1043,11 +1065,13 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
         const [spanStart, spanCount] = setSpanAt(entry.sets, i)
         const pairHead = spanCount === 2 && spanStart === i
         const pairTail = spanCount === 2 && spanStart !== i
+        // Lean layouts: the folded ramp draws its summary line in place of the first rung and nothing else.
+        if (leanOn && warm && isRungRow(s) && !rampOpen) return <div key={i}>{isFirstWarmup && rampSummary}</div>
         return <div key={i}>
           {isFirstWarmup && (isRungRow(s)
-            ? <div className="setph ramp"><span>{t('Ramp-up')}</span><span className="setph-cap">{t('Rest') + ' ' + fmtRest(setRestDefault(i))}</span></div>
+            ? (leanOn ? rampSummary : <div className="setph ramp"><span>{t('Ramp-up')}</span><span className="setph-cap">{t('Rest') + ' ' + fmtRest(setRestDefault(i))}</span></div>)
             : <div className="setph">{t('Warm-up')}</div>)}
-          {!warm && warmBefore && (isRungRow(entry.sets[i - 1]) ? <div className="setph ramp"><span>{t('Working sets')}</span></div> : <div className="setsep" />)}
+          {!warm && warmBefore && (isRungRow(entry.sets[i - 1]) ? (leanOn ? null : <div className="setph ramp"><span>{t('Working sets')}</span></div>) : <div className="setsep" />)}
           {/* A pyramid's Max set: the reps are what you managed, not a number to hit. */}
           {/* With the record to beat at this set's weight or heavier, from before this session. */}
           {!warm && s.max && <div className="setph">{t('Max: as many reps as you can')}{(() => {
@@ -1080,8 +1104,13 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
             </button>
           </div>}
           {loadLine(String(i))}
+          {/* Lean layouts: what this same work set did last time, a small muted line under the row. */}
+          {leanOn && !warm && !pairHead && !pairTail && !isSideSet(s) && (() => {
+            const prev = last?.sets?.[phaseNum - 1]
+            return prev ? <div className="lasthint">{t('last {0}', setLabel(entry.id, prev, last.target, speedUnitOf(S)))}</div> : null
+          })()}
           {/* A ramp-up rung says what it is: its share of the working weight and the reps to aim for. */}
-          {!pairTail && warm && isRungRow(s) && <div className="rampcap">{(s.wb ? t('Empty bar') : s.wp === 0 ? t('Body weight') : t('{0}% of working weight', s.wp)) + ' · ' + (s.rMin ? s.rMin + '–' + rungReps(s) : rungReps(s)) + ' ' + t('reps')}</div>}
+          {!leanOn && !pairTail && warm && isRungRow(s) && <div className="rampcap">{(s.wb ? t('Empty bar') : s.wp === 0 ? t('Body weight') : t('{0}% of working weight', s.wp)) + ' · ' + (s.rMin ? s.rMin + '–' + rungReps(s) : rungReps(s)) + ' ' + t('reps')}</div>}
           {/* The bands this set is done with (lib/bands.js, Reddit): "15 × Red + Yellow". */}
           {/* Per-side sets too (TestFlight 11-08): one band choice for the pair, both sides use it. */}
           {!pairTail && bandsHere && <BandChips value={setBandsOf(s)} label={t('Bands for set {0}', setNumOf(s, i))}
@@ -2821,13 +2850,13 @@ function ActiveWorkout() {
                   const entry = A.entries[idx]
                   return <div key={idx} ref={el => bindExRef(entry, el)} className="ss-ex" data-exidx={idx}>
                     {k > 0 && <div className="ss-amp">+</div>}
-                    <ExerciseBlock entryIdx={idx} compact dense={dense} onSetRowRef={(setIdx, el) => bindSetRef(entry, setIdx, el)}
+                    <ExerciseBlock entryIdx={idx} compact dense={dense} lean onSetRowRef={(setIdx, el) => bindSetRef(entry, setIdx, el)}
                       {...blockProps(idx)} />
                   </div>
                 })}
               </div>
             ) : (
-              <ExerciseBlock entryIdx={u[0]} dense={dense} listed
+              <ExerciseBlock entryIdx={u[0]} dense={dense} listed lean
                 onPairPrev={u[0] > 0 ? () => pairAt(u[0] - 1, u[0]) : null}
                 onPairNext={u[0] < A.entries.length - 1 ? () => pairAt(u[0], u[0] + 1) : null}
                 {...blockProps(u[0])} />

@@ -22,7 +22,8 @@ import { activeProfile as activeEquipment, benchKindOf, withBench, profileEquipm
 import { effortOf } from '../lib/history.js'
 import NewExDefaultsSheet, { newExLine } from '../components/NewExDefaultsSheet.jsx'
 import { figureOf } from '../lib/exercises.js'
-import { unlock, chime, playOnSilentSupported, vibrateSupported, appleTouchDevice } from '../lib/sound.js'
+import { unlock, chime, playOnSilentSupported, vibrateSupported, appleTouchDevice, setMasterVolume } from '../lib/sound.js'
+import { CUES, cueEnabled, volumeOf, playCue } from '../lib/cue-sounds.js'
 import { REST_SOUND_IDS, restSoundOf } from '../lib/rest-sounds.js'
 import { setSlot, slotChoice, slotSound, toneFor, kindChoice, setKindSound, soundsOf, REST_KINDS } from '../lib/user-sounds.js'
 import OwnSounds from '../components/OwnSounds.jsx'
@@ -88,7 +89,7 @@ import { OidcRow } from '../components/OidcAccount.jsx'
 import { DeleteAccountRow } from '../components/DeleteAccount.jsx'
 import { warmupAutoOf } from '../lib/warmup-ramp.js'
 import { MACHINE_EQ, machinesSummary } from '../lib/machine-kinds.js'
-import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, SearchField } from '../components/ui.jsx'
+import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, SearchField, Slider } from '../components/ui.jsx'
 import LiveWidgetSettings, { LiveWidgetCustomise } from '../components/LiveWidgetSettings.jsx'
 import { liveOff } from '../lib/live-activity.js'
 import ForgottenRows from '../components/ForgottenRows.jsx'
@@ -850,6 +851,8 @@ export default function Settings({ page = null, find = null, via = null, entryKe
 
     alerts: () => {
       const iPhone = appleTouchDevice()
+      // The master volume as the slider shows it: 0 to 100 in steps of 5 (S.soundVolume is 0 to 1).
+      const volumePct = Math.round(volumeOf(S) * 20) * 5
       return <>
         <Section title={t('When a rest ends')}>
           <Row icon="speaker" iconTint="var(--pink)" title={t('Play a sound')}>
@@ -875,6 +878,25 @@ export default function Settings({ page = null, find = null, via = null, entryKe
             </Row>
           )}
         </Section>
+        {/* Sound cues (lib/cue-sounds.js): short tunes that say what is next without a look at the
+            phone, and one master volume for every sound the app makes (lib/sound.js setMasterVolume).
+            A cue's switch decides that cue only; the play button plays it now. Shown with Sounds on. */}
+        {S.sound && <Section title={t('Sound cues')} footer={t('Sounds play while the screen is on. A locked iPhone cannot play them, so the app keeps your screen awake during a workout.')}>
+          <div className="lrow voice-sld">
+            <span className="lrow-i" style={{ '--tint': 'var(--pink)' }}><Icon name="speaker" /></span>
+            <span className="lrow-m">
+              <span className="voice-sld-h"><span className="lrow-t">{t('Sound volume')}</span><span className="lrow-v">{volumePct}%</span></span>
+              <Slider value={volumePct} min={0} max={100} step={5} ariaLabel={t('Sound volume')} ariaValueText={volumePct + '%'}
+                onChange={v => { setMasterVolume(v / 100); update(s => { s.soundVolume = v / 100 }) }}
+                onEnd={() => playCue('nextSet')} />
+            </span>
+          </div>
+          {CUES.map(c => <Row key={c.id} icon="bell" iconTint="var(--pink)" title={t(c.label)} subtitle={t(c.description)}>
+            <Button size="sm" variant="tinted" icon="play" aria-label={t('Preview')} onClick={() => playCue(c.id)} />
+            <Switch checked={cueEnabled(S, c.id)}
+              onChange={v => update(s => { const m = { ...(s.soundCues || {}) }; if (v) delete m[c.id]; else m[c.id] = false; s.soundCues = m })} />
+          </Row>)}
+        </Section>}
         {/* The buzz at the end of a rest or a hold and on a set tick, on its own switch like the
             sound (Discord, asierlama). iOS has no navigator.vibrate: the row stays, greyed out,
             and says so, instead of an iPhone user looking for a setting that is not there. */}

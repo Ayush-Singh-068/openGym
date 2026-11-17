@@ -75,6 +75,8 @@ import ImportChoices, { freshChoices, choicesChanged } from './components/Import
 import { buildPlanBundle, buildProgrammeBundle, parsePlan, mergePlan } from './lib/plan-share.js'
 import { SIX_DAY_PPL } from './lib/plans/six-day-ppl.js'
 import { applySixDayPpl } from './lib/plans/load-six-day-ppl.js'
+import StartingWeights from './components/StartingWeights.jsx'
+import { mainRoutineIds } from './lib/starting-weights.js'
 import PrintPlanSheet from './components/PrintPlanSheet.jsx'
 import { printWorkout } from './lib/report-print.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP, formulaOf, FORMULA_NAMES } from './lib/onerm.js'
@@ -344,7 +346,7 @@ function StarterPlanChooser({ close }) {
     <div className="list">
       <div className="item" data-plan="six-day-ppl" {...tappable(() => {
         close()
-        try { planImportSheet(parsePlan(SIX_DAY_PPL, S().unit || 'kg'), { apply: applySixDayPpl, schedule: true, extra: [
+        try { planImportSheet(parsePlan(SIX_DAY_PPL, S().unit || 'kg'), { apply: applySixDayPpl, schedule: true, startingWeights: SIX_DAY_PPL.name, extra: [
           t('Your exercise names are shown exactly as in your plan. Exercises the catalogue does not have are added as your own.'),
           t('Deload every 6th week: 2 sets per exercise, 50% lighter weights, no cardio. Change it in Settings.'),
           t('The Reduced Volume days go into their own folder and are not on the schedule.'),
@@ -3361,15 +3363,23 @@ export function importPlanFile(f, onRead) {
 }
 
 // opts: `apply` replaces the plain merge (a built-in plan adds more than its routines), `schedule`
-// is the switch's start, `extra` is plain lines shown under the explanation.
+// is the switch's start, `extra` is plain lines shown under the explanation, `startingWeights` is
+// the folder of a plan that has no weights: its routines are asked about right after the import.
 export const planImportSheet = (bundle, opts = {}) => ui().openSheet(close => <PlanImport bundle={bundle} close={close} opts={opts} />)
+// "What do you lift now?" for these routines; Save or Skip for now then lands on the plan.
+export const startingWeightsSheet = routineIds =>
+  ui().openSheet(close => <StartingWeights routineIds={routineIds} close={() => closeThenNav(close, '/plan')} />)
 
 function PlanImport({ bundle, close, opts = {} }) {
   const [schedule, setSchedule] = useState(!!opts.schedule)
   const apply = () => {
-    update(s => (opts.apply ? opts.apply(s, bundle, { schedule }) : mergePlan(s, bundle, { schedule })))
+    let result = null
+    update(s => { result = opts.apply ? opts.apply(s, bundle, { schedule }) : mergePlan(s, bundle, { schedule }) })
     close()
     toast(tn('Added {0} routine to your plan', 'Added {0} routines to your plan', bundle.routineCount))
+    // A plan with no weights asks for them first; the sheet takes you to the plan when it is done.
+    const ask = opts.startingWeights ? mainRoutineIds(S(), result?.ids, opts.startingWeights) : []
+    if (ask.length) { startingWeightsSheet(ask); return }
     nav('/plan')
   }
   return <>

@@ -4728,3 +4728,12 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .week-head{flex-wrap:wrap}
 .week-nav .week-cal{padding-inline:8px;font-weight:500}
 .hero-next>.btn{margin-top:10px}
+
+/* ---- list layout: lean ---- */
+/* The ramp-up folded into one line (List and Compact), and last time's result under a work set. */
+.rampsum{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:40px;margin:4px 0 0;padding:6px 0;background:none;border:0;border-radius:var(--r);color:var(--label-2);font:inherit;font-size:var(--fs-caption);font-weight:500;text-align:start;font-variant-numeric:tabular-nums;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rampsum-t{flex:1;min-width:0;line-height:1.25}
+.rampsum-p{white-space:nowrap}
+.rampsum .icn{flex:none;font-size:var(--fs-footnote);color:var(--label-2);transition:transform .15s}
+.rampsum[aria-expanded="true"] .icn{transform:rotate(180deg)}
+.lasthint{margin:-3px 0 3px;padding-inline-start:36px;font-size:var(--fs-caption);line-height:1.2;color:var(--label-2);font-variant-numeric:tabular-nums}

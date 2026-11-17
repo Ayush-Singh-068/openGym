@@ -205,6 +205,13 @@ export const SEARCH = [
   // Timer alerts
   { page: 'alerts', title: 'Play a sound', icon: 'speaker', tint: 'var(--pink)', kw: 'sound sounds audio beep chime volume' },
   { page: 'alerts', title: 'Sound', icon: 'bell', tint: 'var(--pink)', kw: 'classic timer sound beep chime tone bell whistle soft ringtone custom rest end', opts: ['Chime (louder)', 'Classic beeps', 'Bell', 'Beep-beep', 'Whistle', 'Soft'], when: c => c.sound },
+  { page: 'alerts', title: 'Sound volume', icon: 'speaker', tint: 'var(--pink)', kw: 'volume loud louder quiet quieter master level cues', when: c => c.sound },
+  { page: 'alerts', title: 'Next set', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound rest over same exercise two notes', when: c => c.sound },
+  { page: 'alerts', title: 'Next exercise', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound rest over different exercise three notes', when: c => c.sound },
+  { page: 'alerts', title: 'Last set', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound rest over final last set low high low', when: c => c.sound },
+  { page: 'alerts', title: 'Superset switch', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound rest over superset other exercise tick', when: c => c.sound },
+  { page: 'alerts', title: '10 seconds left', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound rest countdown ten seconds soft tick', when: c => c.sound },
+  { page: 'alerts', title: 'Workout finished', icon: 'bell', tint: 'var(--pink)', kw: 'cue sound done complete fanfare end of workout', when: c => c.sound },
   { page: 'alerts', title: 'Play even on silent', icon: 'speaker', tint: 'var(--orange)', kw: 'silent mute ring switch iphone music', when: c => c.sound && c.playOnSilent },
   { page: 'alerts', title: 'Vibrate', icon: 'vibrate', tint: 'var(--indigo)', kw: 'vibrate vibration haptic haptics buzz' },
   { page: 'alerts', title: 'Vibrate on silent too', icon: 'vibrate', tint: 'var(--indigo)', kw: 'alarm silent vibrate android', when: c => c.mobile && c.android && c.canVibrate && c.vibrate },

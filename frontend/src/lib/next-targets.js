@@ -10,10 +10,22 @@ import { speedUnitOf } from './speed.js'
 // The local build starts planned sessions from the last session; a profile moved once keeps the
 // person's own choice in Settings after that.
 export function applyTrainerDefaults(S) {
-  if (!S || S.trainerDefaultsV1 === true) return false
-  S.trainerDefaultsV1 = true
-  S.startFrom = 'last'
-  return true
+  if (!S) return false
+  let changed = false
+  if (S.trainerDefaultsV1 !== true) {
+    S.trainerDefaultsV1 = true
+    S.startFrom = 'last'
+    changed = true
+  }
+  // Layout, once per profile (layoutV2): a profile still on Cards, or with no layout saved, opens
+  // the workout in List. Focus and Compact were a choice, so they stay; so does a later pick of
+  // Cards, because the flag makes this a no-op after the first run.
+  if (S.layoutV2 !== true) {
+    S.layoutV2 = true
+    if (S.workoutView === 'cards' || S.workoutView == null) S.workoutView = 'list'
+    changed = true
+  }
+  return changed
 }
 
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null }

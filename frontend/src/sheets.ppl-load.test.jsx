@@ -85,3 +85,54 @@ describe('the built-in six-day plan from the starter chooser', () => {
     expect(S().deloadCycle).toMatchObject({ every: 6, sets: 2, drop: 50, cardio: 'skip' })
   })
 })
+
+describe('starting weights after the built-in six-day plan', () => {
+  // The six-day plan from the chooser, up to the sheet that follows the import.
+  function loadSixDay() {
+    starterPlanSheet()
+    const chooser = renderTop()
+    act(() => { chooser.querySelector('[data-plan="six-day-ppl"]').click() })
+    const sheet = renderTop()
+    act(() => { buttonFor(sheet, 'Add to my plan').click() })
+    return renderTop()
+  }
+
+  it('opens "What do you lift now?" with one row for each main lift', () => {
+    const host = loadSixDay()
+    expect(useUI.getState().sheets).toHaveLength(1)
+    expect(host.textContent).toContain('What do you lift now?')
+    expect(host.querySelectorAll('[data-ex]')).toHaveLength(42)
+    expect(host.querySelectorAll('h4.sec')).toHaveLength(6)
+    expect(host.querySelector('[data-ex="0047"]')).not.toBeNull()
+    expect(S().routines.filter(r => r.folder === '6-Day Push Pull Legs')).toHaveLength(6)   // the plan itself is already in
+  })
+
+  it('Save weights writes the typed weights into the plan and closes the sheet', () => {
+    const host = loadSixDay()
+    const row = host.querySelector('[data-ex="0047"]')
+    const plus = row.querySelectorAll('button')[1]
+    act(() => { plus.click() })
+    act(() => { plus.click() })
+    act(() => { buttonFor(host, 'Save weights').click() })
+    const push = S().routines.find(r => r.name === 'Push Day 1' && r.folder === '6-Day Push Pull Legs')
+    expect(push.ex.find(x => x.id === '0047').weight).toBe(5)              // two taps of the lift's 2.5 kg step
+    expect(push.ex.find(x => x.id === '0289').weight).toBe(0)              // untouched lifts stay at 0
+    expect(useUI.getState().sheets).toHaveLength(0)
+  })
+
+  it('Skip for now changes no weight and closes the sheet', () => {
+    const host = loadSixDay()
+    const before = JSON.stringify(S().routines)
+    act(() => { buttonFor(host, 'Skip for now').click() })
+    expect(JSON.stringify(S().routines)).toBe(before)
+    expect(useUI.getState().sheets).toHaveLength(0)
+  })
+
+  it('does not open for a plan file or another apply that asks for nothing', () => {
+    planImportSheet(parsePlan(SIX_DAY_PPL, 'kg'), { apply: vi.fn() })
+    const host = renderTop()
+    act(() => { buttonFor(host, 'Add to my plan').click() })
+    expect(useUI.getState().sheets).toHaveLength(0)
+  })
+})
+
