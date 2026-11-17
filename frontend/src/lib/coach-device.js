@@ -11,8 +11,21 @@
 // This module is intentionally light. The setup screen imports it before the user has chosen
 // anything, and the promise there is that nothing AI-shaped loads until they do.
 import { readJsonFile, writeJsonFile } from './mobile.js'
+import { WEB_COACH } from './coach-web.js'
 
 const FILE = 'opengym-coach.json'
+// The browser local build has no device file, so the same facts go to localStorage under this key.
+// The key itself never goes here (see coach-secrets.js).
+const WEB_FILE = 'gym_coach_device_v1'
+// Phone and server builds keep using the device file exactly as before.
+const readDev = async () => {
+  if (!WEB_COACH) return readJsonFile(FILE)
+  try { return JSON.parse(globalThis.localStorage.getItem(WEB_FILE) || 'null') } catch { return null }
+}
+const writeDev = async data => {
+  if (!WEB_COACH) return writeJsonFile(FILE, data)
+  try { globalThis.localStorage.setItem(WEB_FILE, JSON.stringify(data)) } catch { /* no room: the in-memory copy stands */ }
+}
 
 export const COACH_MODES = ['off', 'server', 'byok']
 
@@ -44,7 +57,7 @@ export const coachLimits = d => {
 let cache = null
 export async function loadCoachDevice() {
   if (cache) return cache
-  const saved = await readJsonFile(FILE)
+  const saved = await readDev()
   cache = { ...DEFAULTS, ...(saved && typeof saved === 'object' ? saved : {}) }
   if (!COACH_MODES.includes(cache.mode)) cache.mode = 'off'
   return cache
@@ -56,7 +69,7 @@ export async function saveCoachDevice(patch) {
   // behind: the stored object is always the clamped one, merged with whatever was there before.
   if (patch && patch.limits) next.limits = coachLimits({ limits: { ...coachLimits(cur), ...patch.limits } })
   cache = next
-  await writeJsonFile(FILE, next)
+  await writeDev(next)
   return next
 }
 /** The part of it a UI may show: never the pending proposal, never the handle. */

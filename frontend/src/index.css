@@ -4661,3 +4661,70 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 
 /* Add set / Warm-up / Remove: 44px tall, the leading glyph on the card's content edge; wrapped siblings share the same edge */
 .wk-add{min-height:44px;margin-inline-start:-14px}
+
+/* Exercise note folded to two lines, with a More toggle (views/Workout.jsx FoldNote) */
+.exnote-t.fold{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.exnote-more{background:none;border:0;padding:6px 0 0;margin:0;font:inherit;font-size:var(--fs-footnote);font-weight:600;color:var(--acc-ink,var(--acc));cursor:pointer}
+/* Ramp-up section header and its rungs */
+.setph.ramp{color:var(--label)}
+.setph.ramp>span:first-child{font-weight:600;letter-spacing:.02em;text-transform:uppercase;font-size:var(--fs-caption);color:var(--label-2)}
+.setph-cap{order:2;font-weight:400;color:var(--label-3)}
+.setph.ramp::after{order:1}
+.rampcap{font-size:var(--fs-caption);color:var(--label-2);margin:-2px 0 6px;padding-inline-start:36px;font-variant-numeric:tabular-nums}
+
+/* ------------------------------------------------ home: today hero + week + progress -- */
+.hero{padding:16px}
+.hero .today-row{margin-top:0;padding:0;background:none;border-radius:0;gap:12px;cursor:pointer}
+.hero .today-row:hover,.hero .today-row:active{background:none}
+.hero .today-split{padding:10px 0}
+.hero .today-split+.today-split{border-top:.5px solid var(--sep)}
+.hero .today-row .lrow-i{width:44px;height:44px;border-radius:12px;font-size:1.4rem}
+.hero .today-row .ttl{font-size:var(--fs-title3);font-weight:600;letter-spacing:-.02em;margin-top:1px}
+.hero-meta{margin-top:12px;font-size:var(--fs-footnote);color:var(--label-2);font-variant-numeric:tabular-nums}
+.hero-next-h{margin-top:14px;font-size:var(--fs-subhead);font-weight:600}
+.hero-next-h+.hero-meta{margin-top:2px}
+.hero-ex{margin-top:8px;border-top:.5px solid var(--sep)}
+.hero-exrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:.5px solid var(--sep);font-size:var(--fs-subhead)}
+.hero-exn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero-exl{flex:none;color:var(--label-2);font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:3px}
+.hero-up{font-size:var(--fs-caption);color:var(--green-ink,var(--green))}
+.hero-more{padding:8px 0 0;font-size:var(--fs-footnote);color:var(--label-2)}
+.hero-acts{display:flex;gap:8px;margin-top:14px}
+.hero-acts .btn.primary{flex:1.6}
+.hero-acts .btn.tinted{flex:1}
+.hero .hero-go{margin-top:14px}
+.hero>div:last-child .btn.ghost.sm{font-size:var(--fs-footnote)}
+.week-card{padding:14px 12px 10px}
+.week-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px 6px}
+.week-title{min-width:0}
+.week-lbl{font-weight:600;font-size:var(--fs-body);letter-spacing:-.012em}
+.week-card .wkleft{margin:1px 0 0;text-align:start;font-size:var(--fs-footnote);color:var(--label-2)}
+.week-card .wkleft.done{color:var(--green-ink)}
+.week-nav{display:flex;align-items:center;gap:2px;flex:none}
+.week-nav .iconbtn{width:32px;height:32px;font-size:var(--fs-callout)}
+.wday .dot{width:7px;height:7px;box-sizing:border-box}
+.wday .dot.missed{background:transparent;border:1.5px solid var(--red)}
+.wday .dot.plan{background:var(--label-3);opacity:.55}
+.wday .wskip{display:block;margin:0 auto;font-size:var(--fs-caption);color:var(--label-3);height:7px;line-height:7px}
+.wday.rest:not(.today) .num{color:var(--label-3)}
+.wday .dot,.wday .wskip{margin-top:2px}
+.progress-card .pt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px}
+.progress-card .pt{background:var(--surface-2);border-radius:var(--r);padding:11px 12px;min-width:0}
+.progress-card .pt-month{grid-column:1/-1}
+.pt-row{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-subhead);font-weight:500}
+.pt-bar{height:6px;border-radius:3px;background:var(--surface-3);margin-top:8px;overflow:hidden}
+.pt-bar i{display:block;height:100%;background:var(--acc);border-radius:3px}
+.pt-n{font-size:var(--fs-footnote);color:var(--label-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pt-v{display:flex;align-items:baseline;gap:4px;margin-top:3px;font-variant-numeric:tabular-nums}
+.pt-v strong{font-size:var(--fs-title2);font-weight:600;letter-spacing:-.02em}
+.pt-of{font-size:var(--fs-footnote);color:var(--label-2)}
+.pt-spark{margin-inline-start:auto;color:var(--acc);align-self:center;flex:none}
+.pt-l{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:2px;font-size:var(--fs-caption);color:var(--label-2)}
+.pt-d{display:inline-flex;align-items:center;gap:2px;font-weight:500;font-variant-numeric:tabular-nums}
+.pt-d.up{color:var(--green-ink)}
+.pt-d.down{color:var(--orange-ink,var(--orange))}
+.hero-acts .btn.tinted{background:var(--surface-2);color:var(--label)}
+.hero-acts .btn.tinted .icn{color:var(--label-2)}
+.week-head{flex-wrap:wrap}
+.week-nav .week-cal{padding-inline:8px;font-weight:500}
+.hero-next>.btn{margin-top:10px}

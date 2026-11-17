@@ -1,5 +1,7 @@
 // Indonesian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} perubahan lagi",
+  "+ {0} more changes": "+ {0} perubahan lagi",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Jam tangan",
   "Set once": "Atur sekali",

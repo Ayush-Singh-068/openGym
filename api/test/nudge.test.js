@@ -73,6 +73,16 @@ test('a noted day is excused: not nudged, and not counted towards the back-off',
   assert.equal(excusedOn({ dayNotes: 'x' }, '2026-09-07'), false);
 });
 
+// Busy and Other are skip reasons from the trainer's Skip sheet: a skipped day is never nudged,
+// even though only sick and travel keep a streak week alive (api/coach/core/streak.js).
+test('a day skipped as busy or other is excused like a sick one', () => {
+  for (const tag of ['busy', 'other']) {
+    const s = S({ workouts: [w('2026-09-04')], dayNotes: { '2026-09-07': { tag, _ts: 1 } } });
+    assert.equal(nudgeFor(s, '2026-09-07'), null, tag + ' is excused');
+    assert.equal(excusedOn(s, '2026-09-07'), true, tag + ' counts as a note');
+  }
+});
+
 test('a malformed state reads as nothing to nudge about', () => {
   assert.equal(nudgeFor({}, '2026-09-07'), null);
   assert.equal(nudgeFor({ workouts: 'x', routines: null, week: { 1: 'push' } }, '2026-09-07'), null);

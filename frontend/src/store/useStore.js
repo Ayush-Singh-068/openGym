@@ -7,6 +7,9 @@ import { registerCustom, healCustomEx } from '../lib/exercises.js'
 import { syncGymInventory } from '../lib/gym-inventory.js'
 import { DEMO, LOCAL_BUILD, DEMO_SEEDED } from '../lib/demo.js'
 import { loadMirror, scheduleMirror, flushMirror, writeSafety, keepStorage, mirrorUsable, fitsLocalStorage } from '../lib/local-mirror.js'
+import { scheduleFolderBackup, initFolderBackup } from '../lib/backup-folder.js'
+import { applyTrainerDefaults } from '../lib/next-targets.js'
+import { WEB_COACH } from '../lib/coach-web.js'
 import { rememberDefaultLang } from '../lib/default-lang.js'
 import { guestAllowed } from '../lib/guest.js'
 import { stateJson } from '../lib/state-json.js'
@@ -262,7 +265,8 @@ export const DEF = {
   // weight; 'last' carries the reps over from the last session, the way it always worked before,
   // and the weight too for an exercise with progression off (nothing else decides it).
   // Absent reads as 'plan' too, which is what the MCP bridge sees on a raw state file.
-  startFrom: 'plan',
+  // The local build starts from the last session: it is the personal-trainer default.
+  startFrom: LOCAL_BUILD ? 'last' : 'plan',
   // Warm-ups that build themselves from the work weight (Settings → Workout, lib/warmup-ramp.js):
   // 'off', 'compounds' or 'all'. Absent reads as off, the way every plan worked before.
   warmupAuto: 'off',
@@ -769,7 +773,12 @@ export const useStore = create((set, get) => {
     // which looks newer, and a start in between would take that one back (restoreFromMirror).
     if (MOBILE) nativePersist(!stamp || workoutMoved)
     // Local build: the second copy and the day's snapshot, in IndexedDB (lib/local-mirror.js).
-    if (LOCAL_BUILD) scheduleMirror(json ?? stateJson(S), S._ts || 0)
+    if (LOCAL_BUILD) {
+      const copy = json ?? stateJson(S)
+      scheduleMirror(copy, S._ts || 0)
+      // Desktop folder backup (lib/backup-folder.js): a no-op unless a folder was chosen.
+      scheduleFolderBackup(copy)
+    }
     if (push && get().user) {
       // Before boot has pulled, the copy in hand may be older than the server's: a push now
       // would carry it with a stale (or no) baseRev. It waits for finishBoot.
@@ -2271,7 +2280,11 @@ export const useStore = create((set, get) => {
         }
         // What localStorage already holds goes into the second copy at once, not at the next change.
         if (hasData(get().S)) scheduleMirror(stateJson(get().S), get().S._ts || 0)
+        // Trainer defaults, once per profile (lib/next-targets.js): the flag makes later boots a no-op.
+        get().update(s => { if (s.trainerDefaultsV1 !== true) applyTrainerDefaults(s) })
         keepStorage()
+        initFolderBackup()
+        if (WEB_COACH) { try { set({ coachLocal: coachDeviceSettings(await loadCoachDevice()) }) } catch { /* no device file yet */ } }
         window.addEventListener('pagehide', flushMirror)
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushMirror() })
         get().setGuest(true)

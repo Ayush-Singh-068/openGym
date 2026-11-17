@@ -1,5 +1,7 @@
 // Ukrainian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  '+ {0} more change': "+ {0} зміна",
+  '+ {0} more changes': { one: '+ {0} зміна', few: '+ {0} зміни', many: '+ {0} змін' },
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Годинники",
   "Set once": "Налаштовується один раз",

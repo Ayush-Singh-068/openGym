@@ -1,5 +1,7 @@
 // Hindi UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} और बदलाव",
+  "+ {0} more changes": "+ {0} और बदलाव",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "घड़ियाँ",
   "Set once": "एक बार सेट करें",

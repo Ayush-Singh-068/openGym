@@ -30,6 +30,7 @@ import openrouter from '../../../api/coach/core/adapters/openrouter.js'
 import compatible from '../../../api/coach/core/adapters/compatible.js'
 import { modelSubstitute, compatProfile, rememberCompatProfile } from '../../../api/coach/core/adapters/http.js'
 import { nativeFetch } from './capacitor-fetch.js'
+import { WEB_COACH } from './coach-web.js'
 import { getApiKey } from './coach-secrets.js'
 import { loadCoachDevice, saveCoachDevice, coachLimits } from './coach-device.js'
 import { planHash } from './coach.js'
@@ -61,8 +62,11 @@ export function setNotifier(fn) { notify = fn }
 // to an address on the home network (#913, providers.js phoneMayCall). The setup screen refuses
 // anything else up front; this is the same rule at the moment of the call, for a device file
 // written some other way and for every URL the adapters derive from the base.
+// The browser calls the provider directly with fetch; the phone goes through the native HTTP plugin.
+let transport = (url, init) => (WEB_COACH ? globalThis.fetch(url, init) : nativeFetch(url, init))
+export const _setTransport = fn => { transport = fn }   // test seam
 export const guardedFetch = (url, init) => (phoneMayCall(url)
-  ? nativeFetch(url, init)
+  ? transport(url, init)
   : Promise.reject(new Error(t('Plain http:// only works for an address on your home network, like 192.168.x.x, a .local name or a Tailscale 100.x address. Anything on the internet needs https://.'))))
 
 const cfgOf = d => ({ provider: d.provider, providerOptions: d.baseUrl ? { [d.provider]: { baseUrl: d.baseUrl } } : {} })
@@ -184,6 +188,24 @@ export async function localModels(settings, key) {
   return adapter.models(cfgOf(settings), envOf(settings, key), { fetch: guardedFetch, timeoutMs: 20000 })
 }
 
+/** One tiny request to prove the key and the network work. Never throws. Returns { ok:true, count } or { ok:false, kind, message }. */
+export async function localTest(settings, key) {
+  let r
+  try { r = await localModels(settings, key) } catch { return { ok: false, kind: 'network', message: networkText() } }
+  if (r.ok) return { ok: true, count: (r.models || []).length }
+  return { ok: false, ...explainFailure(r) }
+}
+
+/** Turns a failed model listing into a plain line. The adapter's error starts with the HTTP status when there is one. */
+export function explainFailure(r) {
+  const raw = String(r && r.error || '')
+  const status = Number(r && r.status || (/^\s*(\d{3})\b/.exec(raw) || [])[1] || 0)
+  if (status === 401 || status === 403) return { kind: 'auth', message: t('The provider did not accept this key. Check that it is complete and still active.') }
+  if (status === 429) return { kind: 'rate', message: t('The provider says you hit a rate limit or your account has no credit left. Check your usage and billing on the provider site, then try again.') }
+  return { kind: 'network', message: networkText() }
+}
+const networkText = () => t('Could not reach the provider. Check your connection. If it keeps failing, a browser extension or network filter may be blocking the request.')
+
 const hostOf = url => { try { return new URL(url).host } catch { return url || '' } }
 
 /* ---------- running a job ---------- */
@@ -193,7 +215,7 @@ async function start(S, kind, opts) {
   if (!S?.coach?.consent?.agreedAt) throw Object.assign(new Error(t('The Coach needs your go-ahead first.')), { status: 403, code: 'consent' })
   const d = await loadCoachDevice()
   const adapter = ADAPTERS[d.provider]
-  if (d.mode !== 'byok' || !adapter) throw Object.assign(new Error(t('The Coach isn’t set up on this phone.')), { status: 503, code: 'off' })
+  if (d.mode !== 'byok' || !adapter) throw Object.assign(new Error(WEB_COACH ? t('The Coach isn’t set up in this browser.') : t('The Coach isn’t set up on this phone.')), { status: 503, code: 'off' })
   const cap = await capState()
   // 0 is the documented "no limit" (the dial's own floor), same as the instance cap.
   if (cap.limit > 0 && cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })

@@ -26,7 +26,10 @@ import { useConnectionTrouble } from '../components/SyncBanner.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
-import { dayNoteOf } from '../lib/day-notes.js'
+import { dayNoteOf, DAY_NOTE_ICON, SKIP_LABEL } from '../lib/day-notes.js'
+import { statusesBetween, dayStatus } from '../lib/day-status.js'
+import NextWorkoutCard from '../components/NextWorkoutCard.jsx'
+import ProgressCard from '../components/ProgressCard.jsx'
 import { weighInAt } from '../lib/bodyweight.js'
 import WeightRate from '../components/WeightRate.jsx'
 import { programmeChip } from '../lib/programmes.js'
@@ -37,6 +40,16 @@ import RecoveryHint from '../components/RecoveryHint.jsx'
 import { FastingLine } from '../components/SisterApps.jsx'
 import { ChallengesCard } from '../components/Challenges.jsx'
 import { isOn } from '../lib/modules.js'
+
+// The word a week-strip day gets for its status, read by screen readers and on hover.
+const dayStatusLabel = st => ({
+  done: t('Trained'),
+  skipped: t('Skipped: {0}', t(SKIP_LABEL[st.reason] || 'Other')),
+  missed: t('Missed'),
+  planned: t('Planned'),
+  today: t('Today'),
+  rest: t('Rest day'),
+})[st.kind]
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -67,7 +80,6 @@ export default function Home() {
   // is the setting.
   const wkStart = new Date(today)
   wkStart.setDate(today.getDate() - weekDayOffset(today.getDay(), ws) + weekOffset * 7)
-  const doneDays = new Set(S.workouts.map(w => w.d))
   // The last session logged for today, if any — what the row below reports instead of asking
   // you to start the one you already did. Last wins, so a second session names itself. Only once
   // today's plan is covered, though: a freestyle session on a planned day, or the rotation's
@@ -77,16 +89,31 @@ export default function Home() {
   const loggedToday = S.workouts.filter(w => w.d === todayISO())
   const queueIds = queueOf(S)?.ids || []
   const coveredToday = id => !queueIds.includes(id) && loggedToday.some(w => (Array.isArray(w.routineIds) ? w.routineIds : [w.routineId]).includes(id))
+  // Today skipped on purpose (lib/day-status.js): the row says so and offers the undo.
+  const skip = dayStatus(S, todayISO(), today)
+  const skippedToday = skip.kind === 'skipped' && !S.active
   const doneToday = (todayRoutines.every(r => coveredToday(r.id)) && loggedToday.at(-1)) || null
+  // What each day of the shown week was (lib/day-status.js): trained, skipped, missed, rest or to come.
+  const weekFrom = isoOf(wkStart)
+  const weekTo = isoOf(new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() + 6, 12))
+  const statuses = statusesBetween(S, weekFrom, weekTo, today)
   const strip = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(wkStart); d.setDate(wkStart.getDate() + i)
     const iso = isoOf(d)
-    const eff = effectiveRoutineIds(S, iso).length > 0, ovr = S.dayPlan[iso] !== undefined, done = doneDays.has(iso)
-    // A day off with a note (#261) reads as excused, not as a plan that went by.
-    const dot = done ? ' done' : dayNoteOf(S, iso) ? ' noted' : ovr && eff ? ' ovr' : eff ? ' plan' : ''
-    strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '')} {...tappable(() => dayOverrideSheet(iso))}>
-      <div className="lbl">{t(DAYS[d.getDay()])}</div><div className="num">{d.getDate()}</div><div className={'dot' + dot} /></div>)
+    const st = statuses[iso]
+    const ovr = S.dayPlan[iso] !== undefined, eff = st.routineIds.length > 0
+    // A skipped day shows its reason icon instead of a dot: it was excused, not a plan that went by.
+    const skipIcon = st.kind === 'skipped' ? DAY_NOTE_ICON[st.reason] : null
+    const dot = st.kind === 'done' ? ' done'
+      : st.kind === 'missed' ? ' missed'
+        : st.kind === 'today' || st.kind === 'planned' ? (ovr && eff ? ' ovr' : ' plan')
+          : st.kind === 'rest' && dayNoteOf(S, iso) ? ' noted' : ''
+    strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '') + (st.kind === 'rest' ? ' rest' : '')} title={fmtDate(iso, true) + ': ' + dayStatusLabel(st)} aria-label={fmtDate(iso, true) + ': ' + dayStatusLabel(st)} {...tappable(() => dayOverrideSheet(iso))}>
+      <div className="lbl">{t(DAYS[d.getDay()])}</div><div className="num">{d.getDate()}</div>
+      {skipIcon ? <Icon name={skipIcon} className="wskip" />
+        : <div className={'dot' + dot} />}
+    </div>)
   }
   const wkEnd = new Date(wkStart); wkEnd.setDate(wkStart.getDate() + 6)
   const wkLabel = weekOffset === 0 ? t('This week') : `${wkStart.getDate()} ${wkStart.toLocaleDateString(dateLocale(), { month: 'short' })} – ${wkEnd.getDate()} ${wkEnd.toLocaleDateString(dateLocale(), { month: 'short' })}`
@@ -142,32 +169,7 @@ export default function Home() {
     </div>
     <TrainerNotice />
 
-    <div className="card">
-      {/* A running programme (lib/programmes.js) wrote this week's plan: where it stands, one tap from its screen. */}
-      {progChip && <button type="button" className="chip ichip prog-chip" onClick={() => nav('/plan/programmes')}><Icon name="calendar" /><span>{progChip}</span></button>}
-      {/* A coach week runs by order, not by weekday, so its progress row stands in for the
-          seven dots (components/QueueRow.jsx). The today row below stays as it is: the queue's
-          next session reaches it through effectiveRoutineIds like any planned routine. */}
-      {rotating ? (queue ? <QueueRow S={S} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
-        {t('No rotation yet. Add routines to it in Plan.')}
-        <div style={{ marginTop: 10 }}><Button size="sm" variant="tinted" onClick={() => nav('/plan')}>{t('Set up in Plan')}</Button></div>
-      </div>) : <>
-        <div className="row between" style={{ marginBottom: 8 }}>
-          <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 'var(--fs-subhead)' }} onClick={() => setWeekOffset(w => w - 1)} aria-label={t('Previous week')}><Icon name="chevronLeft" /></button>
-          <div className="small muted" style={{ fontWeight: 500 }}>{wkLabel}</div>
-          <button className="iconbtn" style={{ width: 30, height: 30, fontSize: 'var(--fs-subhead)' }} onClick={() => setWeekOffset(w => w + 1)} aria-label={t('Next week')}><Icon name="chevronRight" /></button>
-        </div>
-        <div className="week">{strip}</div>
-      </>}
-      {/* The week's plan as a countdown (#753, lib/week-left.js): "2 of 4 left this week". */}
-      {left && <div className={'small dim wkleft' + (left.left > 0 ? '' : ' done')}>
-        {left.left > 0 ? tn('{0} of {1} left this week', '{0} of {1} left this week', left.left, left.of) : t('All done this week. Nice.')}
-      </div>}
-      {/* Once today's session is logged the row stops asking for it. The week strip already
-          knew (its dot goes 'done'); this row did not, so a finished day kept showing the
-          routine name behind a green Start tag and read as still outstanding (issue #4).
-          An in-progress session still wins — that one is happening right now. Tapping the
-          row keeps working, so a second session in one day is a tap away, just not urged. */}
+    <div className="card hero">
       {splitDay ? apartSessions.map((x, i) => {
         const name = deriveSessionName(x.routines.map(r => r.name))
         return <div key={x.ids.join('+')} className="today-row today-split" data-tour={i ? undefined : 'today'} {...tappable(() => startOrPreview(x.ids))}>
@@ -185,27 +187,31 @@ export default function Home() {
         </div>
       }) : <div className="today-row" data-tour="today" {...tappable(onToday)}>
         <div className="row" style={{ gap: 9, minWidth: 0 }}>
-          <span className="lrow-i" style={{ background: S.active ? 'var(--orange)' : doneToday ? 'var(--surface-3)' : routine ? 'var(--acc)' : 'var(--surface-3)',
+          <span className="lrow-i" style={{ background: S.active ? 'var(--orange)' : doneToday ? 'var(--surface-3)' : skippedToday ? 'var(--indigo)' : routine ? 'var(--acc)' : 'var(--surface-3)',
             // the rest day's moon on the grey square: white on #e3e3e8 vanished in the light theme
             ...(!S.active && !doneToday && !routine ? { color: 'var(--label-2)' } : {}) }}>
-            <Icon name={S.active ? (editingSaved ? 'pencil' : 'play') : doneToday ? 'checkCircle' : routine ? glyphOf(routine.emoji) : 'moon'}
+            <Icon name={S.active ? (editingSaved ? 'pencil' : 'play') : doneToday ? 'checkCircle' : skippedToday ? 'skipForward' : routine ? glyphOf(routine.emoji) : 'moon'}
               style={doneToday && !S.active ? { color: 'var(--green)' } : undefined} />
           </span>
           <div style={{ minWidth: 0 }}>
             <div className="lbl2">{t('Today')}</div>
             <div className="ttl">{S.active ? (editingSaved ? S.active.name : t('{0} (in progress)', S.active.name))
               : doneToday ? (doneToday.name ? t('{0} (done)', doneToday.name) : t('Workout done'))
+              : skippedToday ? t('Skipped today')
               : routine ? todayName : t('Rest day')}{todayOvr && routine && !doneToday ? ' · ' + t('rescheduled') : ''}</div>
+            {skippedToday && !doneToday && <div className="ss">{t(SKIP_LABEL[skip.reason] || 'Other')}</div>}
             {next && !doneToday && <div className="ss">{t('Next session: {0}, {1}', t(DAYN[next.weekday]), next.routine.name)}</div>}
           </div>
         </div>
         {S.active ? <span className="tag" style={{ color: 'var(--orange-ink)', background: 'color-mix(in srgb,var(--orange) 16%,transparent)' }}>{editingSaved ? t('Edit') : t('Resume')}</span>
           : doneToday ? <span className="tag" style={{ color: 'var(--green)', background: 'color-mix(in srgb,var(--green) 16%,transparent)' }}>{t('Done')}</span>
-          : routine ? <span className="row" style={{ gap: 8 }}><MiniBodyMap routines={todayRoutines} body={S.body} /><span className="tag acc">{t('Start')}</span></span>
+          : routine ? <MiniBodyMap routines={todayRoutines} body={S.body} />
           : <Icon name="plus" className="chev" />}
       </div>}
       {/* openNutrition's fasting window (lib/sister-nutrition.js), when this device is linked. */}
       <FastingLine />
+      {/* What is in it and Start, Skip: the same numbers Start opens with (lib/next-targets.js). */}
+      <NextWorkoutCard S={S} hidden={splitDay} todayIds={doneToday || skippedToday ? [] : effectiveRoutineIds(S, todayISO())} />
       {/* The row above starts today's plan in one tap, and so does the Start button in the tab
           bar — which is the whole problem when you want something else. Both jump straight into
           the planned session whenever there is one, so the Start screen (a freestyle session,
@@ -219,6 +225,35 @@ export default function Home() {
       </div>}
       <SeasonDeco spot="home-hero" />
     </div>
+    <div className="card week-card">
+      {/* A running programme (lib/programmes.js) wrote this week's plan: where it stands, one tap from its screen. */}
+      {progChip && <button type="button" className="chip ichip prog-chip" onClick={() => nav('/plan/programmes')}><Icon name="calendar" /><span>{progChip}</span></button>}
+      {/* A coach week runs by order, not by weekday, so its progress row stands in for the
+          seven dots (components/QueueRow.jsx). The today row above stays as it is: the queue's
+          next session reaches it through effectiveRoutineIds like any planned routine. */}
+      {rotating ? (queue ? <QueueRow S={S} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
+        {t('No rotation yet. Add routines to it in Plan.')}
+        <div style={{ marginTop: 10 }}><Button size="sm" variant="tinted" onClick={() => nav('/plan')}>{t('Set up in Plan')}</Button></div>
+      </div>) : <>
+        <div className="week-head">
+          <div className="week-title">
+            <div className="week-lbl">{wkLabel}</div>
+            {/* The week's plan as a countdown (#753, lib/week-left.js): "2 of 4 left this week". */}
+            {left && weekOffset === 0 && <div className={'wkleft' + (left.left > 0 ? '' : ' done')}>
+              {left.left > 0 ? tn('{0} of {1} left this week', '{0} of {1} left this week', left.left, left.of) : t('All done this week. Nice.')}
+            </div>}
+          </div>
+          <div className="week-nav">
+            <Button size="sm" variant="ghost" trailingIcon="chevronRight" className="week-cal" onClick={() => nav('/calendar')}>{t('Calendar')}</Button>
+            <button className="iconbtn" onClick={() => setWeekOffset(w => w - 1)} aria-label={t('Previous week')}><Icon name="chevronLeft" /></button>
+            <button className="iconbtn" onClick={() => setWeekOffset(w => w + 1)} aria-label={t('Next week')}><Icon name="chevronRight" /></button>
+          </div>
+        </div>
+        <div className="week">{strip}</div>
+      </>}
+    </div>
+
+    <ProgressCard S={S} />
 
     {/* Monday: Your week; the 1st: Your month (lib/recap.js). Off in Settings → Look & Home. */}
     <RecapHomeCard S={S} />

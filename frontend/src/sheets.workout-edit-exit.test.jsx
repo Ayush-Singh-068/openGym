@@ -48,6 +48,9 @@ describe('closing the saved-workout editor', () => {
     expect(useUI.getState().sheets.length).toBe(1)
     const host = renderTop()
     act(() => { button(host, 'Save changes').click() })
+    // The prompt hands over to the change summary, which asks once more before the save.
+    const summary = renderTop()
+    act(() => { button(summary, 'Save changes').click() })
     expect(useStore.getState().S.active).toBeNull()
     expect(useStore.getState().S.workouts[0].entries[0].sets[0].w).toBe(50)
     expect(useUI.getState().toastMsg).toBe('Workout updated')
@@ -60,7 +63,7 @@ describe('closing the saved-workout editor', () => {
     exitWorkoutEdit()
     const stale = renderTop()
     // The editor closes some other way (a save from the bottom button) while the prompt is up.
-    act(() => { saveWorkoutEdits(() => navigated.push('/history')) })
+    act(() => { saveWorkoutEdits(() => navigated.push('/history'), { confirmed: true }) })
     expect(useUI.getState().toastMsg).toBe('Workout updated')
     act(() => { button(stale, 'Save changes').click() })
     expect(useUI.getState().sheets.length).toBe(0)

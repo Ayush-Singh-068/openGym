@@ -1,5 +1,7 @@
 // Czech UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} další změna",
+  "+ {0} more changes": "+ {0} dalších změn",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Hodinky",
   "Set once": "Nastavit jednou",

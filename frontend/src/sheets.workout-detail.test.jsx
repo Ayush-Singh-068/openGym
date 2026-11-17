@@ -53,7 +53,7 @@ describe('workout detail', () => {
       { id: lifts[0], target: { mode: 'reps' }, sets: [done(100, 8, { type: 'dropset', drops: [{ w: 80, r: 6 }, { w: 60, r: 5 }] })] },
       { id: lifts[1], target: { mode: 'reps' }, sets: [done(60, 16, { type: 'restpause', clusters: [{ r: 4, restSec: 15 }, { r: 2, restSec: 15 }] })] },
     ]))
-    const rows = [...mountTopSheet().querySelectorAll('.wd-ex .ss')].map(el => el.textContent)
+    const rows = [...mountTopSheet().querySelectorAll('.wd-ex .wdv-set .wd-set')].map(el => el.textContent)
     expect(rows).toEqual(['100×8 ↘ 80×6 ↘ 60×5', '60×10+4+2'])
   })
 

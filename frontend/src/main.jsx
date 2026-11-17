@@ -15,6 +15,7 @@ import { hideBoot, handOverFromLaunchScreen } from './lib/boot.js'
 import { guardFocusZoom } from './lib/viewport-zoom.js'
 import { initBuildCaps } from './lib/channel.js'
 import { LOCAL_BUILD } from './lib/demo.js'
+import { WEB_COACH } from './lib/coach-web.js'
 import { setOfflineBuild } from './lib/build-caps.js'
 import { startNetLog } from './lib/net-log.js'
 import { applyDisplay } from './lib/display-prefs.js'
@@ -43,7 +44,7 @@ const render = () => createRoot(document.getElementById('root')).render(
 // answers still gets its app after a moment.
 // Local build: the page can never reach a server, so it is openGym Offline's web twin: the same
 // network-only modules and cards stay out of sight.
-if (LOCAL_BUILD) setOfflineBuild(true)
+if (LOCAL_BUILD) setOfflineBuild(true, { coach: WEB_COACH })
 if (MOBILE) Promise.race([initBuildCaps().catch(() => {}), new Promise(r => setTimeout(r, 700))]).then(render)
 else render()
 

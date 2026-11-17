@@ -13,7 +13,7 @@
 import { buildCompletedWorkout } from './finish-workout.js'
 import { beatsWeight } from './exercises.js'
 import { bestWeightForEntry, workoutVolume } from './history.js'
-import { hasCompletedWork } from './workout-model.js'
+import { hasCompletedWork, isWarmupRow } from './workout-model.js'
 import { stampWorkout } from './sync-merge.js'
 import { legacySyncKey, rebuildPrHistory } from './workout-date.js'
 
@@ -234,4 +234,50 @@ export function deleteEditedWorkout(state) {
   state.workouts = state.workouts.filter(w => w !== current)
   lowerKeptWeights(state, [...new Set(list(current.entries).map(e => e?.id).filter(id => id != null))], current, null)
   return true
+}
+
+/**
+ * What Save would change in the workout the editor is open on: the done sets, exercise by
+ * exercise, compared with the saved record. Pure and read-only. Returns [] when only the note,
+ * name or body weight changed (or nothing).
+ *   { kind: 'exercise-added' | 'exercise-removed', id }
+ *   { kind: 'set-changed' | 'set-added' | 'set-removed', id, set: 1-based number among that exercise's work sets,
+ *     before: { w, r, sec } | null, after: { w, r, sec } | null }
+ * Warm-up rows are ignored (they never feed progression).
+ */
+export function diffWorkoutEdit(state) {
+  const active = state?.active
+  const key = active?.editingWorkoutId
+  if (key == null) return []
+  const current = list(state.workouts).find(w => keyOf(w) === key)
+  if (!current) return []
+  const after = draftRecord(active, current, key)
+  const rowsOf = e => list(e?.sets).filter(s => s && s.done && !isWarmupRow(s))
+    .map(s => ({ w: Number(s.w) || 0, r: Number(s.r) || 0, sec: Number(s.sec) || 0 }))
+  // Occurrences of the same exercise pair up by order: the 1st with the 1st, the 2nd with the 2nd.
+  const group = rec => {
+    const out = new Map()
+    for (const e of list(rec?.entries)) {
+      if (e?.id == null) continue
+      if (!out.has(e.id)) out.set(e.id, [])
+      out.get(e.id).push(rowsOf(e))
+    }
+    return out
+  }
+  const before = group(current), next = group(after), diff = []
+  for (const id of new Set([...before.keys(), ...next.keys()])) {
+    const b = before.get(id) || [], a = next.get(id) || []
+    if (!b.length) { diff.push({ kind: 'exercise-added', id }); continue }
+    if (!a.length) { diff.push({ kind: 'exercise-removed', id }); continue }
+    for (let o = 0; o < Math.max(a.length, b.length); o++) {
+      const bs = b[o] || [], as = a[o] || []
+      for (let i = 0; i < Math.max(bs.length, as.length); i++) {
+        const x = bs[i] || null, y = as[i] || null
+        if (x && y) { if (x.w !== y.w || x.r !== y.r || x.sec !== y.sec) diff.push({ kind: 'set-changed', id, set: i + 1, before: x, after: y }) }
+        else if (y) diff.push({ kind: 'set-added', id, set: i + 1, before: null, after: y })
+        else if (x) diff.push({ kind: 'set-removed', id, set: i + 1, before: x, after: null })
+      }
+    }
+  }
+  return diff
 }

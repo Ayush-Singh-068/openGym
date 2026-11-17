@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import SwipeCards from '../components/SwipeCards.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
 import { useNavigate } from 'react-router-dom'
@@ -55,6 +55,7 @@ import { rpeAs } from '../lib/programmes.js'
 import { buildPlannedEntry, buildSessionEntry, plannedConfigOf, builtOutOfProgression } from '../lib/session-start.js'
 import { routineChangesFromEntry, updateRoutineFromEntry, routineSlotIndex, ownWarmupsChange, keepOwnWarmups, replaceSlotExercise } from '../lib/routines.js'
 import { ownRowsLine } from '../lib/warmup-ramp.js'
+import { isRungRow } from '../lib/warmup-snap.js'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 // Opened in the same tick as the menu closes, like every other sheet from that menu: a sheet that
 // opened a moment later (after a dynamic import) took the menu's history entry with it on close.
@@ -185,6 +186,24 @@ function LadderNext ({ entry, next }) {
     <span className="grow"><span className="small dim">{t('Next rung')}</span><b>{exerciseNameText(EXIDX[next])}</b></span>
     {slot >= 0 && !done && <Button size="sm" variant="tinted" onClick={swap}>{t('Swap in routine')}</Button>}
     {done && <Icon name="check" className="ladder-next-ok" />}
+  </div>
+}
+
+// A rung's top reps: a per-side row keeps the doubled total in `r`, the side's own count in sides.
+const rungReps = s => (s.sides ? Math.max(Number(s.sides.L?.r) || 0, Number(s.sides.R?.r) || 0) : s.r)
+
+// The plan's instruction for an exercise, folded to two lines with a More toggle when it is long.
+function FoldNote({ text }) {
+  const [open, setOpen] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el && !open) setClipped(el.scrollHeight > el.clientHeight + 1)
+  }, [text, open])
+  return <div className="exnote">
+    <div ref={ref} className={'exnote-t' + (open ? '' : ' fold')}>{text}</div>
+    {(clipped || open) && <button type="button" className="exnote-more" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? t('Less') : t('More')}</button>}
   </div>
 }
 
@@ -984,7 +1003,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
         own line and its own icon: the plan's instruction (cfg.note, from the routine), the
         standing fact about the movement (exNotes), and the message you pinned to yourself last
         session. Today's own note is edited through the button in the header and shown last. */}
-    {cfg.note && <div className="exnote">{cfg.note}</div>}
+    {cfg.note && <FoldNote text={cfg.note} />}
     {standingNote && <div className="exnote"><Icon name="info" style={{ fontSize: 'var(--fs-footnote)', marginInlineEnd: 5, verticalAlign: '-2px' }} />{standingNote}</div>}
     {gymNote && <div className="exnote gym-pin" title={t('Pinned at {0}', gymNote.gym.name || t('My gym'))}><Icon name="mapPin" style={{ fontSize: 'var(--fs-footnote)', marginInlineEnd: 5, verticalAlign: '-2px' }} />{gymNote.text}</div>}
     {pinnedNote && <div className="exnote" style={{ color: 'var(--yellow)' }}>
@@ -1025,8 +1044,10 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
         const pairHead = spanCount === 2 && spanStart === i
         const pairTail = spanCount === 2 && spanStart !== i
         return <div key={i}>
-          {isFirstWarmup && <div className="setph">{t('Warm-up')}</div>}
-          {!warm && warmBefore && <div className="setsep" />}
+          {isFirstWarmup && (isRungRow(s)
+            ? <div className="setph ramp"><span>{t('Ramp-up')}</span><span className="setph-cap">{t('Rest') + ' ' + fmtRest(setRestDefault(i))}</span></div>
+            : <div className="setph">{t('Warm-up')}</div>)}
+          {!warm && warmBefore && (isRungRow(entry.sets[i - 1]) ? <div className="setph ramp"><span>{t('Working sets')}</span></div> : <div className="setsep" />)}
           {/* A pyramid's Max set: the reps are what you managed, not a number to hit. */}
           {/* With the record to beat at this set's weight or heavier, from before this session. */}
           {!warm && s.max && <div className="setph">{t('Max: as many reps as you can')}{(() => {
@@ -1059,6 +1080,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, editing, onToggle, on
             </button>
           </div>}
           {loadLine(String(i))}
+          {/* A ramp-up rung says what it is: its share of the working weight and the reps to aim for. */}
+          {!pairTail && warm && isRungRow(s) && <div className="rampcap">{(s.wb ? t('Empty bar') : s.wp === 0 ? t('Body weight') : t('{0}% of working weight', s.wp)) + ' · ' + (s.rMin ? s.rMin + '–' + rungReps(s) : rungReps(s)) + ' ' + t('reps')}</div>}
           {/* The bands this set is done with (lib/bands.js, Reddit): "15 × Red + Yellow". */}
           {/* Per-side sets too (TestFlight 11-08): one band choice for the pair, both sides use it. */}
           {!pairTail && bandsHere && <BandChips value={setBandsOf(s)} label={t('Bands for set {0}', setNumOf(s, i))}

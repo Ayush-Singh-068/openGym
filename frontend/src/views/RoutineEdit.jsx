@@ -1,6 +1,6 @@
 import { isFavRoutine, toggleFavRoutine } from '../lib/routine-favs.js'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
@@ -29,6 +29,7 @@ import { POLICIES_FOR, POLICY_NAME, POLICY_DESC, profileRule } from '../lib/prog
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
 import { viewTarget, exUnitOf } from '../lib/ex-unit.js'
+import { nextTargetBySlot } from '../lib/next-targets.js'
 
 export const ROUTINE_LONG_PRESS_MS = 380
 export const ROUTINE_DRAG_SLOP = 8
@@ -383,6 +384,8 @@ export default function RoutineEdit() {
   const reorder = useRoutineReorder(r, r?.ex || [], (sourceIndex, targetSlot) => {
     edit(exercises => { reorderRoutineUnit(exercises, sourceIndex, targetSlot) })
   })
+  // What each slot opens at next time, from the same builder Start uses (lib/next-targets.js).
+  const nextBySlot = useMemo(() => nextTargetBySlot(S, id), [S.workouts, S.routines, S.startFrom, S.unit, id]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return null
   // The arrows move one exercise (#377): inside its superset, out of it at the edge, and past a
   // whole neighbouring unit otherwise (lib/history.js moveRoutineEntry). Drag moves supersets whole.
@@ -583,6 +586,8 @@ export default function RoutineEdit() {
           {ssPos.has(i) && <span className="ss-pos" aria-label={t('Superset position {0}', ssPos.get(i))}>{ssPos.get(i)}</span>}
           <Thumb ex={ex} />
           <button type="button" className="grow item-open tap-main" data-row-open aria-haspopup="dialog" onClick={openEx}><span className={`tt ${exerciseNameClass(ex)}`}>{exerciseNameFor(ex)}</span><span className="ss">{exLine(viewTarget(S, e.id, e), exUnitOf(S, e.id), speedUnitOf(S))}</span>
+            {nextBySlot[i] && nextBySlot[i].line !== exLine(viewTarget(S, e.id, e), exUnitOf(S, e.id), speedUnitOf(S)) &&
+              <span className="ss dim">{nextBySlot[i].kind === 'up' && <Icon name="arrowUp" style={{ fontSize: 'var(--fs-caption)' }} />}{t('Next time: {0}', nextBySlot[i].line)}</span>}
             {e.note && <span className="small dim" style={{ marginTop: 2 }}>{e.note}</span>}</button>
           {noEquip && <span className="tag" style={{ color: 'var(--orange-ink)', borderColor: 'var(--orange)' }} title={t('Needs {0}, which isn’t in your active profile', t(ex.eq))}><Icon name="warning" /></span>}
           {/* One rail (P4): the superset link beside the two move buttons, each a finger-sized

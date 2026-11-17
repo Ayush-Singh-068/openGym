@@ -4,8 +4,7 @@ import { LOCAL_BUILD } from '../lib/demo.js'
 import { useStore, hasData } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { exportDue, markExported, snoozeReminder, markFirstData, reminderState } from '../lib/backup-reminder.js'
-
-const todayISO = () => new Date().toISOString().slice(0, 10)
+import { backupFileName } from '../lib/local-mirror.js'
 
 /* Local build only: "Save a backup file" after a week without one. One tap downloads the JSON (or
    opens the phone's share sheet, so it can go to Files or a drive); "Later" asks again tomorrow. */
@@ -19,7 +18,7 @@ export default function BackupReminder() {
   if (!exportDue({ ...reminderState(), has })) return null
   const save = async () => {
     const json = JSON.stringify(useStore.getState().S, null, 2)
-    const name = 'opengym-backup-' + todayISO() + '.json'
+    const name = backupFileName('json')
     try {
       const file = new File([json], name, { type: 'application/json' })
       if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: name })

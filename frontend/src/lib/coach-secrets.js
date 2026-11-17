@@ -1,13 +1,20 @@
 // Where the phone keeps the user's own API key: the platform's secure storage — the Keychain on
 // iOS, the Keystore-backed EncryptedSharedPreferences on Android — and nowhere else. Never in
-// S (which syncs and exports), never in localStorage (which the WebView evicts and any page on
-// the same origin can read), never in the coach device file next to it.
+// S (which syncs and exports), never in the coach device file next to it.
+//
+// The browser local build (VITE_LOCAL=1) has no secure storage. There the key is plain text in
+// this browser's localStorage under its own key (WEB_KEY), on this device only. It is not in S,
+// not in the device file, and not in any export; clearing site data or erasing the device removes it.
 //
 // The plugin is imported lazily and every call is wrapped: on a plain web dev run it stores
 // to localStorage by its own admission, and in a test there is no platform at all. In both
 // cases the fallback is a process-local map that forgets on reload, which is the honest
 // behaviour for a place that cannot keep a secret.
+import { WEB_COACH } from './coach-web.js'
+
 const KEY = 'coach.apiKey'
+export const WEB_KEY = 'gym_coach_key_v1'
+const webStore = () => { try { return WEB_COACH ? globalThis.localStorage : null } catch { return null } }
 const memory = new Map()
 
 // The loaded plugin travels inside a plain object, never as a promise's own value (no `await`
@@ -60,6 +67,25 @@ export async function secureRemove(key) {
   memory.delete(key)
 }
 
-export const getApiKey = () => secureGet(KEY)
-export const setApiKey = value => secureSet(KEY, value)
-export const clearApiKey = () => secureRemove(KEY)
+export async function getApiKey() {
+  const ls = webStore()
+  if (ls) { try { return ls.getItem(WEB_KEY) || null } catch { return null } }
+  return secureGet(KEY)
+}
+export async function setApiKey(value) {
+  const v = String(value || '').trim()
+  if (!v) return clearApiKey()
+  const ls = webStore()
+  // A full or blocked storage throws here; the screen says "Could not save the key" then.
+  if (ls) { ls.setItem(WEB_KEY, v); return }
+  return secureSet(KEY, v)
+}
+export async function clearApiKey() {
+  const ls = webStore()
+  if (ls) { try { ls.removeItem(WEB_KEY) } catch { /* nothing to clear */ } }
+  return secureRemove(KEY)
+}
+/** Whether a key is saved, without handing it out. */
+export const hasApiKey = async () => !!(await getApiKey())
+/** A key shown as sk-...abcd, for the screen. Never log or persist this either. */
+export const maskKey = k => (k && k.length > 8 ? k.slice(0, 3) + '...' + k.slice(-4) : k ? '...' : '')

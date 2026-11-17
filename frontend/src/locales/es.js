@@ -1,5 +1,7 @@
 // Spanish UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} cambio más",
+  "+ {0} more changes": "+ {0} cambios más",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Relojes",
   "Set once": "Una sola vez",

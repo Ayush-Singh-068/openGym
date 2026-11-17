@@ -7,8 +7,9 @@ import { shownNameOf } from '../exercise-aliases.js'
 import { weekKey, weekStartOf, todayISO } from '../format.js'
 
 const MAIN = ['pull1', 'push1', 'legs1', 'pull2', 'push2', 'legs2']
-const BAR = [{ wb: true, r: 10 }, { wp: 40, r: 8 }, { wp: 60, r: 5 }, { wp: 80, r: 3 }]
-const PULLUP = [{ wp: 0, r: 10 }, { wp: 40, r: 8 }, { wp: 60, r: 5 }, { wp: 80, r: 3 }]
+const RUNGS = [{ wp: 40, r: 8, rMin: 6 }, { wp: 60, r: 5, rMin: 4 }, { wp: 80, r: 3, rMin: 2 }]
+const BAR = [{ wb: true, r: 10 }, ...RUNGS]
+const PULLUP = [{ wp: 0, r: 10 }, ...RUNGS]
 const routineById = (plan, id) => plan.routines.find(r => r.id === id)
 const customIds = new Set(SIX_DAY_PPL.customEx.map(c => c.id))
 const customIdOf = n => SIX_DAY_PPL.customEx.find(c => c.n === n).id
@@ -88,14 +89,15 @@ describe('six-day PPL built-in plan', () => {
     }
   })
 
-  it('puts the RAMP-UP SETS section text verbatim on the ramp slots', () => {
+  it('keeps the ramp-up paragraph out of the notes: it is the Ramp-up section now', () => {
+    for (const r of SIX_DAY_PPL.routines) for (const s of r.ex) {
+      if (s.warmup === 'own') {
+        expect(s.note.startsWith('Effort Score:'), r.id + ' ' + s.id).toBe(true)
+        expect(s.note, r.id + ' ' + s.id).not.toContain('Ramp-Up Set')
+      }
+    }
     const pullUp = routineById(SIX_DAY_PPL, 'pull1').ex.find(s => s.id === '0841')
-    expect(pullUp.note.startsWith('Ramp-Up Set 1: Use an empty bar or the lightest available weight. Perform 10 repetitions')).toBe(true)
-    expect(pullUp.note).toContain('Ramp-Up Set 4: Use about 80 percent of your working weight. Perform 2 to 3 repetitions.')
-    expect(pullUp.note).toContain('Rest 60 to 90 seconds between each of these four sets.')
-    expect(pullUp.note).toContain('you may skip Ramp-Up Set 4, since these carry lower joint stress.')
-    const tbar = routineById(SIX_DAY_PPL, 'pull2').ex.find(s => s.id === '1194')
-    expect(tbar.note).toContain('you may skip Ramp-Up Set 4')
+    expect(pullUp.note).toContain('Pull your shoulder blades down and back first')
   })
 
   it('keeps the owner text verbatim in notes', () => {
@@ -125,6 +127,12 @@ describe('six-day PPL built-in plan', () => {
 
   it('keeps every note within NOTE_MAX (2000 characters)', () => {
     for (const r of SIX_DAY_PPL.routines) for (const s of r.ex) expect((s.note || '').length, s.id).toBeLessThanOrEqual(2000)
+  })
+
+  it('loading the plan starts each lift from the last session', () => {
+    const s = draft()
+    applySixDayPpl(s, parsePlan(SIX_DAY_PPL, 'kg'), { schedule: true })
+    expect(s.startFrom).toBe('last')
   })
 
   it('applies to an empty store draft: 12 routines, shown names, deload cycle, restored custom subs', () => {

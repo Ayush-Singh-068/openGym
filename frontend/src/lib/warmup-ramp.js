@@ -67,13 +67,16 @@ export function cleanOwnRow(row) {
   if (!row || typeof row !== 'object') return null
   const r = clampInt(row.r, 1, OWN_REPS_MAX)
   if (r == null) return null
-  if (row.wb === true) return { wb: true, r }
+  // An optional lower end of the rep range ("6 to 8"): kept only when it sits below the top.
+  const rMin = clampInt(row.rMin, 1, OWN_REPS_MAX)
+  const range = rMin != null && rMin < r ? { rMin } : {}
+  if (row.wb === true) return { wb: true, r, ...range }
   const wp = Number(row.wp)
   if (!Number.isFinite(wp)) return null
   // 0 is the body alone on a weighted bodyweight lift; anything else sits in the usual range.
-  if (wp === 0) return { wp: 0, r }
+  if (wp === 0) return { wp: 0, r, ...range }
   const pct = Math.min(OWN_PCT_MAX, Math.max(OWN_PCT_MIN, Math.round(wp)))
-  return { wp: pct, r }
+  return { wp: pct, r, ...range }
 }
 
 /** A slot's saved block, cleaned and in order. */
@@ -138,6 +141,15 @@ export function autoRungs({ work, kg, bar = 0, compound = false, bw = false, ass
  */
 export function rungRows(rungs, { work, grid, floor = 0, perSide = false }) {
   const out = []
+  // No work weight yet (a first session): the rungs still show, as their share and reps with an
+  // empty weight, and take their kg when the work weight is typed (history.js liveReramp).
+  if (!(work > 0)) {
+    for (const rung of rungs) {
+      const row = { w: 0, r: rung.r, ...(rung.rMin ? { rMin: rung.rMin } : {}), done: false, phase: 'warmup', warmup: true, ...(rung.wb ? { wb: true } : { wp: rung.wp }) }
+      out.push(perSide ? makeSideSet({ ...row, r: rung.r * 2 }) : row)
+    }
+    return out
+  }
   let last = -1
   for (const rung of rungs) {
     const w = rungWeight(rung, work, grid, floor)
@@ -145,7 +157,7 @@ export function rungRows(rungs, { work, grid, floor = 0, perSide = false }) {
     if (!body && (!(w > 0) || w >= work)) continue
     if (w <= last) continue
     last = w
-    const row = { w, r: rung.r, done: false, phase: 'warmup', warmup: true, ...(rung.wb ? { wb: true } : { wp: rung.wp }) }
+    const row = { w, r: rung.r, ...(rung.rMin ? { rMin: rung.rMin } : {}), done: false, phase: 'warmup', warmup: true, ...(rung.wb ? { wb: true } : { wp: rung.wp }) }
     out.push(perSide ? makeSideSet({ ...row, r: rung.r * 2 }) : row)
   }
   return out
@@ -166,8 +178,9 @@ export function warmupBlock(S, cfg, rows, { grid, floor = 0, unit = 'kg' } = {})
   const source = warmupSource(S, cfg)
   if (source.kind !== 'auto' && source.kind !== 'own') return null
   const work = workLoadOf(rows)
-  if (!(work > 0)) return []
   const perSide = isPerSide(cfg)
+  // Your own block shows before there is a weight to scale it by; a generated one needs the weight.
+  if (!(work > 0)) return source.kind === 'own' ? rungRows(source.rows, { work, perSide }) : []
   if (source.kind === 'own') return rungRows(source.rows, { work, grid, floor, perSide })
   const kg = unit === 'lb' ? work * LB_KG : work
   // A dip belt or a vest ("weighted" equipment) adds load to the body, so it warms up like a

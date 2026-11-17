@@ -6,6 +6,7 @@ import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
 import { api, appBase } from '../lib/api.js'
 import { DEMO, NO_SERVER } from '../lib/demo.js'
+import { WEB_COACH } from '../lib/coach-web.js'
 import { MOBILE } from '../lib/mobile.js'
 import { fmtAgo } from '../lib/format.js'
 import { copyText } from '../lib/clipboard.js'
@@ -132,10 +133,10 @@ export default function IntegrationsPage({ android = false, ios = false }) {
   const [calendar, setCalendarState] = useState(null)
   useEffect(() => { if (tokens) getCalendar().then(setCalendarState).catch(() => {}) }, [tokens])
   const ctx = {
-    offline: offlineBuild(), webdav, tokens, calendar, nutrition,
+    offline: offlineBuild(), webCoach: WEB_COACH, webdav, tokens, calendar, nutrition,
     mobile: MOBILE, platform, user, demo: DEMO, admin: !!user?.admin, health, server: server.data, offered,
     mod: id => isOn(S, id),
-    coach: coachAvailable(config, user, { demo: DEMO }), coachMode: coachLocal?.mode === 'server' || coachLocal?.mode === 'byok' ? coachLocal.mode : null,
+    coach: coachAvailable(config, user, { demo: DEMO, mobile: MOBILE || WEB_COACH, coachMode: coachLocal?.mode }), coachMode: coachLocal?.mode === 'server' || coachLocal?.mode === 'byok' ? coachLocal.mode : null,
   }
   const dir = directory(ctx)
 

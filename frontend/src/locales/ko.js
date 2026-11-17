@@ -1,5 +1,7 @@
 // Korean UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0}개 변경 더",
+  "+ {0} more changes": "+ {0}개 변경 더",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "워치",
   "Set once": "한 번만 설정",

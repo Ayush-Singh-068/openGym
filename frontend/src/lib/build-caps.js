@@ -19,7 +19,13 @@ export const OFFLINE_OFF_MODULES = ['coach', 'integrations', 'community']
 // opennutrition: the sister-app link (lib/sister-nutrition.js, gm-hooks) talks to another server.
 export const OFFLINE_OFF_CARDS = ['hevy', 'strava', 'webdav', 'calendar', 'webhook', 'coach', 'mcp', 'opennutrition']
 
+// The browser local build (VITE_LOCAL=1) is Offline's web twin, except that the Coach can run on
+// the person's own API key. These lists are that build's version of the Offline lists.
+export const LOCAL_OFF_MODULES = OFFLINE_OFF_MODULES.filter(m => m !== 'coach')
+export const LOCAL_OFF_CARDS = OFFLINE_OFF_CARDS.filter(c => c !== 'coach')
+
 let offline = false
+let coachAllowed = false
 const subs = new Set()
 
 /** Whether this is openGym Offline, the build without the INTERNET permission. */
@@ -28,11 +34,20 @@ export const offlineBuild = () => offline
 /** Whether something that needs the network may be offered in this build. */
 export const networkBuilt = () => !offline
 
-export function setOfflineBuild(v) {
+/** The Integrations cards hidden in this build: the Offline list, minus the Coach when the web coach is on. */
+export const offCards = () => (coachAllowed ? LOCAL_OFF_CARDS : OFFLINE_OFF_CARDS)
+/** The same list under the name the Integrations step uses. */
+export const localCardsOff = offCards
+
+/** Sets the build. `coach: true` keeps the Coach on (the browser local build with its own key). */
+export function setOfflineBuild(v, { coach = false } = {}) {
   v = !!v
-  if (v === offline) return
+  const allowed = v && !!coach
+  const changed = v !== offline || allowed !== coachAllowed
   offline = v
-  setUnavailableModules(v ? OFFLINE_OFF_MODULES : [])
+  coachAllowed = allowed
+  if (!changed) return
+  setUnavailableModules(v ? (allowed ? LOCAL_OFF_MODULES : OFFLINE_OFF_MODULES) : [])
   subs.forEach(fn => { try { fn() } catch { /* a listener's own trouble */ } })
 }
 

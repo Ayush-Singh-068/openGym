@@ -121,10 +121,16 @@ describe('saving an edit that leaves no set', () => {
     expect(S().workouts.map(w => w.id)).toEqual(['other'])
   })
 
-  it('an edit with a set left saves as before, with no question', () => {
+  it('an edit with a set left asks what changed first, then saves once confirmed', () => {
     renderEditor()
     act(() => useStore.getState().update(s => { s.active.entries[1].sets[0].done = false }))
     tapSave()
+
+    // Unticking a set is a change to the record, so the summary comes first and nothing is saved yet.
+    expect(renderTopSheet().querySelector('h3').textContent).toBe('Save these changes?')
+    expect(S().workouts.find(w => w.id === 'saved').entries).toHaveLength(2)
+    const confirm = renderTopSheet()
+    act(() => { button(confirm, 'Save changes').click() })
 
     expect(useUI.getState().sheets).toHaveLength(0)
     expect(S().active).toBeNull()

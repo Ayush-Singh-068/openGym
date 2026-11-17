@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayKey, pruneKeys, shrank, fitsLocalStorage, LS_MAX, SNAP_KEEP } from './local-mirror.js'
+import { dayKey, pruneKeys, shrank, fitsLocalStorage, LS_MAX, SNAP_KEEP, agoOf, backupStamp, backupFileName, onMirrorSaved } from './local-mirror.js'
 
 describe('dayKey', () => {
   it('writes the device calendar day as YYYY-MM-DD', () => {
@@ -37,5 +37,55 @@ describe('fitsLocalStorage', () => {
     expect(fitsLocalStorage(40_000)).toBe(true)
     expect(fitsLocalStorage(LS_MAX)).toBe(true)
     expect(fitsLocalStorage(LS_MAX + 1)).toBe(false)
+  })
+})
+
+describe('agoOf', () => {
+  const now = 1_000_000_000_000
+  const ago = s => agoOf(now - s * 1000, now)
+  it('says "now" for the first few seconds', () => {
+    expect(ago(4)).toMatchObject({ unit: 'now', n: 0 })
+    expect(ago(0)).toMatchObject({ unit: 'now', n: 0 })
+  })
+  it('counts seconds, then minutes, hours and days at each boundary', () => {
+    expect(ago(5)).toMatchObject({ unit: 'seconds', n: 5 })
+    expect(ago(59)).toMatchObject({ unit: 'seconds', n: 59 })
+    expect(ago(60)).toMatchObject({ unit: 'minutes', n: 1 })
+    expect(ago(3599)).toMatchObject({ unit: 'minutes', n: 59 })
+    expect(ago(3600)).toMatchObject({ unit: 'hours', n: 1 })
+    expect(ago(47 * 3600)).toMatchObject({ unit: 'hours', n: 47 })
+    expect(ago(48 * 3600)).toMatchObject({ unit: 'days', n: 2 })
+  })
+  it('clamps a time in the future to now', () => {
+    expect(agoOf(now + 60_000, now)).toMatchObject({ unit: 'now', n: 0 })
+  })
+  it('words the count through Intl.RelativeTimeFormat, with no plural key', () => {
+    expect(ago(12).text).toBe('12 seconds ago')
+    expect(ago(60).text).toBe('1 minute ago')
+    expect(ago(2 * 60).text).toBe('2 minutes ago')
+    expect(ago(3600).text).toBe('1 hour ago')
+    expect(ago(48 * 3600).text).toBe('2 days ago')
+    expect(ago(0).text).toBe('now')
+  })
+})
+
+describe('backupStamp and backupFileName', () => {
+  it('stamps the device clock as YYYY-MM-DD-HHMM', () => {
+    expect(backupStamp(new Date(2030, 0, 5, 7, 3))).toBe('2030-01-05-0703')
+    expect(backupStamp(new Date(2030, 0, 5, 0, 0))).toBe('2030-01-05-0000')
+  })
+  it('names the file with the stamp and the extension', () => {
+    expect(backupFileName('json', new Date(2030, 0, 5, 7, 3))).toBe('opengym-backup-2030-01-05-0703.json')
+    expect(backupFileName('zip', new Date(2030, 0, 5, 7, 3))).toMatch(/\.zip$/)
+  })
+})
+
+describe('onMirrorSaved', () => {
+  it('returns an unsubscribe function and registers a listener once', () => {
+    const fn = () => {}
+    const off = onMirrorSaved(fn)
+    expect(typeof off).toBe('function')
+    expect(onMirrorSaved(fn)).toBeTypeOf('function')
+    off()
   })
 })

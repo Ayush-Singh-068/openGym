@@ -1,4 +1,6 @@
 export default {
+  "+ {0} more change": "+ 另外 {0} 項變更",
+  "+ {0} more changes": "+ 另外 {0} 項變更",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "手錶",
   "Set once": "設定一次",

@@ -4,6 +4,8 @@
 import pt from './pt.js'
 
 export const PT_BR_OVERRIDES = {
+  "+ {0} more change": "+ mais {0} alteração",
+  "+ {0} more changes": "+ mais {0} alterações",
   // --- Settings first screen in groups (#1105); "Watches" (Relógios) is inherited ---
   "Set once": "Configurar uma vez",
   "Connections": "Conexões",

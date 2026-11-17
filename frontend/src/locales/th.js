@@ -1,5 +1,7 @@
 // Thai UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ อีก {0} รายการ",
+  "+ {0} more changes": "+ อีก {0} รายการ",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "นาฬิกา",
   "Set once": "ตั้งครั้งเดียว",

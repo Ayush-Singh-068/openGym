@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editCompletedSession, saveWorkoutEdit, editLeftEmpty, deleteEditedWorkout, editChangesNothing } from './session-edit.js'
+import { editCompletedSession, saveWorkoutEdit, editLeftEmpty, deleteEditedWorkout, editChangesNothing, diffWorkoutEdit } from './session-edit.js'
 import { mergeStates } from './sync-merge.js'
 import { entryExcluded, lastEntryFor } from './history.js'
 
@@ -355,5 +355,86 @@ describe('editChangesNothing', () => {
     gone.workouts = []
     expect(editChangesNothing(gone)).toBe(false)
     expect(editChangesNothing({ active: null, workouts: [] })).toBe(false)
+  })
+})
+
+describe('what Save would change (diffWorkoutEdit)', () => {
+  // Two exercises, so a Save never looks empty when one of them is taken out in a test.
+  const two = () => ({ ...fixture(), workouts: [{ ...fixture().workouts[0], entries: [entry(40), entry(60, '0081')] }] })
+  const open = () => { const st = two(); editCompletedSession(st, 'workout'); return st }
+
+  it('no change gives no changes', () => {
+    expect(diffWorkoutEdit(open())).toEqual([])
+  })
+
+  it('a weight changed on set 1 is one set-changed with both weights', () => {
+    const st = open()
+    st.active.entries[0].sets[0].w = 45
+    expect(diffWorkoutEdit(st)).toEqual([{
+      kind: 'set-changed', id: '0025', set: 1,
+      before: { w: 40, r: 5, sec: 0 }, after: { w: 45, r: 5, sec: 0 },
+    }])
+  })
+
+  it('a set pushed on is set-added', () => {
+    const st = open()
+    st.active.entries[0].sets.push({ w: 42.5, r: 4, done: true })
+    const [d] = diffWorkoutEdit(st)
+    expect(d).toMatchObject({ kind: 'set-added', id: '0025', set: 2, before: null, after: { w: 42.5, r: 4 } })
+  })
+
+  it('removing the second of two sets is set-removed', () => {
+    const st = two()
+    st.workouts[0].entries[0].sets.push({ w: 40, r: 5, done: true })
+    editCompletedSession(st, 'workout')
+    expect(diffWorkoutEdit(st)).toEqual([])
+    st.active.entries[0].sets.pop()
+    expect(diffWorkoutEdit(st)).toEqual([{
+      kind: 'set-removed', id: '0025', set: 2,
+      before: { w: 40, r: 5, sec: 0 }, after: null,
+    }])
+  })
+
+  it('a new exercise is exercise-added, and a removed one is exercise-removed', () => {
+    const st = open()
+    st.active.entries.push(entry(25, 'added'))
+    expect(diffWorkoutEdit(st)).toEqual([{ kind: 'exercise-added', id: 'added' }])
+    const gone = open()
+    gone.active.entries = gone.active.entries.filter(e => e.id !== '0081')
+    expect(diffWorkoutEdit(gone)).toEqual([{ kind: 'exercise-removed', id: '0081' }])
+  })
+
+  it('changing only the note gives no changes', () => {
+    const st = open()
+    st.active.note = 'felt strong'
+    expect(diffWorkoutEdit(st)).toEqual([])
+  })
+
+  it('an undone set counts as removed', () => {
+    const st = two()
+    st.workouts[0].entries[0].sets.push({ w: 42.5, r: 4, done: true })
+    editCompletedSession(st, 'workout')
+    st.active.entries[0].sets[1].done = false
+    expect(diffWorkoutEdit(st)).toEqual([{
+      kind: 'set-removed', id: '0025', set: 2,
+      before: { w: 42.5, r: 4, sec: 0 }, after: null,
+    }])
+  })
+
+  it('a warm-up row changed is ignored', () => {
+    const st = open()
+    st.active.entries[0].sets.unshift({ w: 20, r: 10, done: true, warmup: true })
+    const saved = open()
+    saved.active.entries[0].sets.unshift({ w: 10, r: 10, done: true, warmup: true })
+    expect(diffWorkoutEdit(st)).toEqual([])
+    expect(diffWorkoutEdit(saved)).toEqual([])
+  })
+
+  it('does not change the state', () => {
+    const st = open()
+    st.active.entries[0].sets[0].w = 45
+    const before = JSON.stringify(st)
+    diffWorkoutEdit(st)
+    expect(JSON.stringify(st)).toBe(before)
   })
 })

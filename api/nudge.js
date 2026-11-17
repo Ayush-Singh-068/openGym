@@ -38,7 +38,7 @@ const records = v => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object
 const logged = (S, iso) => S.workouts.some(w => w.d === iso);
 // A day with a note on it (frontend lib/day-notes.js: a quick pick or a line of text) is excused:
 // never a missed day, never nudged or reminded about.
-const DAY_NOTE_TAGS = ['sick', 'travel', 'rest', 'injured'];
+const DAY_NOTE_TAGS = ['sick', 'travel', 'rest', 'injured', 'busy', 'other'];
 export function excusedOn(S, iso) {
   const e = S?.dayNotes && typeof S.dayNotes === 'object' ? S.dayNotes[iso] : null;
   if (!e || typeof e !== 'object' || Array.isArray(e)) return false;

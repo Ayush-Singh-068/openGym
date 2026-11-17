@@ -17,6 +17,7 @@ import { t, tn } from '../lib/i18n.js'
 import { MOBILE } from '../lib/mobile.js'
 import { CATEGORY_TEXT } from '../lib/coach.js'
 import { getApiKey, setApiKey, clearApiKey } from '../lib/coach-secrets.js'
+import { WEB_COACH, WEB_DEFAULT_PROVIDER, webProviderOk } from '../lib/coach-web.js'
 import { coachLimits, clampCoachLimit, COACH_LIMITS } from '../lib/coach-device.js'
 import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, baseUrlFor, validateBaseUrl, phoneMayCall, providerOfKey, priceTier } from '../../../api/coach/core/providers.js'
 import { DATA_CATEGORIES } from '../../../api/coach/core/categories.js'
@@ -46,6 +47,8 @@ const CARDS = [
   { id: 'gemini', provider: 'gemini', icon: 'key', tint: 'var(--blue)', line: () => t('Gemini, with a free tier to start') },
   { id: 'local', provider: 'compatible', icon: 'house', tint: 'var(--teal)', title: () => t('On my network'), line: () => t('Ollama or LM Studio at home, nothing leaves your Wi-Fi') }
 ]
+// The browser build shows only the providers that work from a browser, OpenAI first.
+const SHOWN_CARDS = WEB_COACH ? ['openai', 'anthropic', 'gemini', 'openrouter'].map(p => CARDS.find(c => c.provider === p)) : CARDS
 const TIER = { free: () => t('free'), low: () => '$', mid: () => '$$', high: () => '$$$' }
 const tierOf = (m, prices) => { const k = priceTier(m, prices && prices[m]); return k ? TIER[k]() : '' }
 
@@ -62,8 +65,10 @@ export default function CoachSetup() {
   const toast = useUI(s => s.toast)
   const openSheet = useUI(s => s.openSheet)
 
-  const [choice, setChoice] = useState(null)              // 'server' | 'byok' | null
-  const [provider, setProvider] = useState(coachLocal?.provider || 'anthropic')
+  // In the browser there is one answer, the person's own key, so the choice step is skipped.
+  const [choice, setChoice] = useState(WEB_COACH ? 'byok' : null)   // 'server' | 'byok' | null
+  const startProvider = coachLocal?.provider || (WEB_COACH ? WEB_DEFAULT_PROVIDER : 'anthropic')
+  const [provider, setProvider] = useState(startProvider)
   const [baseUrl, setBaseUrl] = useState(coachLocal?.baseUrl || '')
   const [model, setModel] = useState(coachLocal?.model || '')
   const [key, setKey] = useState('')
@@ -71,7 +76,7 @@ export default function CoachSetup() {
   const [models, setModels] = useState(null)
   const [prices, setPrices] = useState(null)
   const cardFor = id => (id === 'compatible' ? 'local' : CARDS.some(c => c.id === id) ? id : null)
-  const [card, setCard] = useState(cardFor(coachLocal?.provider || 'anthropic'))
+  const [card, setCard] = useState(cardFor(startProvider))
   const [found, setFound] = useState(null)               // local discovery: null idle, [] none, [...]
   const [orSession, setOrSession] = useState(null)       // a running OpenRouter sign-in, for the paste fallback
   const [orCode, setOrCode] = useState('')
@@ -82,7 +87,7 @@ export default function CoachSetup() {
   // freely and is only clamped and saved when the field is left.
   const [limits, setLimits] = useState(() => coachLimits(coachLocal))
 
-  useEffect(() => { if (!MOBILE) nav('/settings', { replace: true }) }, [])
+  useEffect(() => { if (!MOBILE && !WEB_COACH) nav('/settings', { replace: true }) }, [])
   useEffect(() => { getApiKey().then(k => setHasKey(!!k)) }, [])
   // Ask the paired server afresh: the admin may have switched the Coach on since this phone booted.
   useEffect(() => { if (user) refreshConfig() }, [user])
@@ -231,12 +236,46 @@ export default function CoachSetup() {
     await setCoachLocal({ mode: 'off' })
     const local = await import('../lib/coach-local.js').catch(() => null)
     if (local) await local.localForget()
-    setChoice(null)
-    toast(t('The Coach is off'))
+    // The browser has no choice step to go back to, so the form stays where it is.
+    if (!WEB_COACH) setChoice(null)
+    toast(WEB_COACH ? t('Key removed from this browser') : t('The Coach is off'))
+  }
+
+  // Browser build: save the key and the settings, then stay on this screen.
+  const saveWeb = async () => {
+    const k = key.trim()
+    if (!k && !hasKey) return toast(t('Enter your API key'))
+    const chosen = model || meta.defaultModel
+    if (!chosen) return toast(t('Pick a model'))
+    setBusy(true)
+    try {
+      if (k) { await setApiKey(k); setHasKey(true); setKey('') }
+      await setCoachLocal({ mode: 'byok', provider, model: chosen, baseUrl: null })
+      toast(t('Key saved on this device'))
+    } catch {
+      toast(t('Could not save the key in this browser'))
+    } finally { setBusy(false) }
+  }
+
+  // One tiny request to the provider. The key is used for the call and not stored.
+  const testConnection = async () => {
+    const k = key.trim() || await getApiKey()
+    if (!k) return toast(t('Enter your API key'))
+    const v = WEB_COACH ? { ok: true, value: null } : validateBaseUrl(meta.baseUrl ? baseUrl : '')
+    if (!v.ok) return toast(v.error)
+    setBusy(true)
+    try {
+      const local = await import('../lib/coach-local.js')
+      const r = await local.localTest({ provider, baseUrl: v.value }, k)
+      if (r.ok) toast(t('Connected. The provider accepted your key.') + (r.count ? ' ' + t('{0} models available', r.count) : ''))
+      else toast(r.message)
+    } catch (e) {
+      toast(e?.message || t('Could not connect'))
+    } finally { setBusy(false) }
   }
 
   const current = coachLocal?.mode === 'server' ? t('Runs on your openGym server')
-    : coachLocal?.mode === 'byok' ? t('Runs on this phone with your own API key')
+    : coachLocal?.mode === 'byok' ? (WEB_COACH ? t('Runs in this browser with your own API key') : t('Runs on this phone with your own API key'))
     : t('Off. Choose how the Coach should run.')
 
   return <div className="narrow">
@@ -250,14 +289,14 @@ export default function CoachSetup() {
         accessory="chevron" onClick={() => nav('/assistants')} />
     </Section>
 
-    <Section title={t('How should the Coach run?')} footer={current}>
+    {!WEB_COACH && <Section title={t('How should the Coach run?')} footer={current}>
       <Row icon="rocket" iconTint="var(--indigo)" title={t('Use my self-hosted openGym')}
         subtitle={user ? (serverHasCoach ? t('Your server runs the Coach with whatever provider its admin set up. Nothing new leaves this phone beyond what already syncs.') : config == null ? t('Loading…') : t('Your server has no Coach enabled. Ask its admin, or bring your own key below.')) : t('Connect to my server')}
         accessory="chevron" onClick={() => { if (!user || serverHasCoach) useServer(); else setChoice('server') }} />
       <Row icon="key" iconTint="var(--acc)" title={t('Bring my own API key')}
         subtitle={t('This phone calls the provider directly with your key. Every request is charged to your account.')}
         accessory="chevron" onClick={() => setChoice('byok')} />
-    </Section>
+    </Section>}
 
     {choice === 'server' && !serverHasCoach && <div className="card">
       <div className="muted small">{t('Your server has no Coach enabled. Ask its admin, or bring your own key below.')}</div>
@@ -266,14 +305,14 @@ export default function CoachSetup() {
     {choice === 'byok' && <>
       <Section title={t('Pick your AI')}>
         <div className="cs-cards">
-          {CARDS.map(c => <button key={c.id} type="button" className={'cs-card' + (card === c.id ? ' on' : '')} disabled={busy} aria-pressed={card === c.id} onClick={() => pick(c)}>
+          {SHOWN_CARDS.map(c => <button key={c.id} type="button" className={'cs-card' + (card === c.id ? ' on' : '')} disabled={busy} aria-pressed={card === c.id} onClick={() => pick(c)}>
             <span className="cs-card-i" style={{ color: c.tint }}><Icon name={c.icon} /></span>
             <span className="cs-card-t">{c.title ? c.title() : HTTP_PROVIDERS[c.provider].label}</span>
             <span className="cs-card-s">{c.line()}</span>
           </button>)}
         </div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 7, padding: '4px 12px 10px' }}>
-          {HTTP_PROVIDER_IDS.filter(id => !CARDS.some(c => c.provider === id && c.id !== 'local')).map(id => <button key={id} className={'chip' + (id === provider && !card ? ' on' : '')} disabled={busy}
+          {HTTP_PROVIDER_IDS.filter(id => (!WEB_COACH || webProviderOk(id)) && !CARDS.some(c => c.provider === id && c.id !== 'local')).map(id => <button key={id} className={'chip' + (id === provider && !card ? ' on' : '')} disabled={busy}
             onClick={() => { setCard(null); setProvider(id); setFound(null) }}>{HTTP_PROVIDERS[id].label}</button>)}
         </div>
       </Section>
@@ -284,7 +323,7 @@ export default function CoachSetup() {
         {(found || []).map(f => <Row key={f.base} icon="check" iconTint="var(--green)" title={f.kind} subtitle={f.base + ' · ' + tn('{0} model', '{0} models', f.models.length)} accessory="chevron" onClick={() => useFound(f)} />)}
       </Section>}
 
-      {meta.baseUrl && <Section title={t('Endpoint')}
+      {meta.baseUrl && !WEB_COACH && <Section title={t('Endpoint')}
         footer={isCleartext(baseUrl) && !phoneMayCall(baseUrl) ? <span style={{ color: 'var(--red)' }}>{cleartextRefused()}</span> : t('Plain http only on your home network')}>
         <div style={{ padding: '8px 12px' }}>
           <TextField value={baseUrl} placeholder="https://ollama.example.com" inputMode="url" autoCapitalize="none" autoCorrect="off"
@@ -292,7 +331,7 @@ export default function CoachSetup() {
         </div>
       </Section>}
 
-      {meta.signIn === 'pkce' && <Section title={t('Sign in')} footer={t('OpenRouter makes a key just for this phone, billed to your OpenRouter credits. You can revoke it there any time.')}>
+      {meta.signIn === 'pkce' && !WEB_COACH && <Section title={t('Sign in')} footer={t('OpenRouter makes a key just for this phone, billed to your OpenRouter credits. You can revoke it there any time.')}>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', padding: '8px 12px' }}>
           <Button variant="primary" icon="person" disabled={busy} onClick={signInOpenRouter}>{t('Sign in with OpenRouter')}</Button>
           <Button variant="tinted" disabled={busy} onClick={pasteInstead}>{t('Paste a code instead')}</Button>
@@ -303,7 +342,9 @@ export default function CoachSetup() {
         </div>}
       </Section>}
 
-      <Section title={meta.signIn === 'pkce' ? t('Or paste a key') : t('API key')} footer={t('The key is stored in this phone’s secure storage and never leaves it except to call the provider.')}>
+      <Section title={meta.signIn === 'pkce' ? t('Or paste a key') : t('API key')} footer={WEB_COACH
+        ? t('The key is saved as plain text in this browser, on this device only. Anyone who can use this browser profile could read it. It is never included in backups or exports, and clearing site data or erasing this device removes it. It is sent only to your chosen provider.')
+        : t('The key is stored in this phone’s secure storage and never leaves it except to call the provider.')}>
         <div style={{ padding: '8px 12px' }}>
           <TextField value={key} type="password" placeholder={hasKey ? '••••••••  ' + t('(saved)') : (meta.keyPlaceholder || 'sk-…')} autoCapitalize="none" autoCorrect="off"
             onChange={e => onKey(e.target.value)} />
@@ -319,7 +360,7 @@ export default function CoachSetup() {
         <Row icon="clipboard" iconTint="var(--grey)" title={t('Paste the key')} accessory="none" onClick={busy ? undefined : pasteKey} />
       </Section>
 
-      <Section title={t('What leaves this phone')}>
+      <Section title={WEB_COACH ? t('What leaves this browser') : t('What leaves this phone')}>
         {DATA_CATEGORIES.map(k => {
           const [title, sub] = CATEGORY_TEXT[k]?.() || [k, '']
           return <Row key={k} icon="check" iconTint="var(--acc)" title={title} subtitle={sub} />
@@ -338,12 +379,15 @@ export default function CoachSetup() {
 
       {models && step === 2 && <div className="cs-ok" role="status"><Icon name="checkCircle" /> {tn('It works! {0} model to pick from.', 'It works! {0} models to pick from.', models.length)}</div>}
 
-      {models && <Section title={t('Model')}>
+      {(models || WEB_COACH) && <Section title={t('Model')}>
         <div style={{ padding: '8px 12px' }}>
-          <select className="input" value={model} disabled={busy} onChange={e => setModel(e.target.value)} style={{ width: '100%' }}>
+          {WEB_COACH && <div style={{ marginBottom: models ? 8 : 0 }}>
+            <TextField value={model} placeholder={meta.defaultModel || ''} autoCapitalize="none" autoCorrect="off" onChange={e => setModel(e.target.value)} />
+          </div>}
+          {models && <select className="input" value={model} disabled={busy} onChange={e => setModel(e.target.value)} style={{ width: '100%' }}>
             <option value="">{meta.defaultModel ? `(${meta.defaultModel})` : t('Pick a model')}</option>
             {models.map(m => { const tier = tierOf(m, prices); return <option key={m} value={m}>{tier ? `${m}  ·  ${tier}` : m}</option> })}
-          </select>
+          </select>}
         </div>
       </Section>}
 
@@ -362,17 +406,21 @@ export default function CoachSetup() {
       </Section>
 
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        {!models
-          ? <Button variant="primary" icon="sparkles" disabled={busy} onClick={prepare}>{t('Test it')}</Button>
-          : <Button variant="primary" icon="check" disabled={busy} onClick={save}>{t('Save and use the Coach')}</Button>}
-        {models && <Button disabled={busy} onClick={prepare}>{t('Test it')}</Button>}
+        {WEB_COACH
+          ? <Button variant="primary" icon="check" disabled={busy} onClick={saveWeb}>{hasKey ? t('Replace key') : t('Save key')}</Button>
+          : !models
+            ? <Button variant="primary" icon="sparkles" disabled={busy} onClick={prepare}>{t('Test it')}</Button>
+            : <Button variant="primary" icon="check" disabled={busy} onClick={save}>{t('Save and use the Coach')}</Button>}
+        {!WEB_COACH && models && <Button disabled={busy} onClick={prepare}>{t('Test it')}</Button>}
+        <Button disabled={busy} onClick={testConnection}>{t('Test connection')}</Button>
+        {WEB_COACH && hasKey && <Button disabled={busy} onClick={turnOff}>{t('Remove key')}</Button>}
       </div>
     </>}
 
     {coachLocal?.mode && coachLocal.mode !== 'off' && <AiConsentSection />}
 
     {coachLocal?.mode && coachLocal.mode !== 'off' && <Section title={t('Controls')}>
-      <Row icon="signOut" iconTint="var(--red)" title={t('Turn the Coach off on this phone')} danger onClick={turnOff} />
+      <Row icon="signOut" iconTint="var(--red)" title={WEB_COACH ? t('Turn the Coach off in this browser') : t('Turn the Coach off on this phone')} danger onClick={turnOff} />
     </Section>}
   </div>
 }

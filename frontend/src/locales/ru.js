@@ -1,5 +1,7 @@
 // Russian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  '+ {0} more change': "+ {0} изменение",
+  '+ {0} more changes': { one: '+ {0} изменение', few: '+ {0} изменения', many: '+ {0} изменений' },
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Часы",
   "Set once": "Настраивается один раз",

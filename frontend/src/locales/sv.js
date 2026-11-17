@@ -1,5 +1,7 @@
 // Swedish UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} ytterligare ändring",
+  "+ {0} more changes": "+ {0} ytterligare ändringar",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Klockor",
   "Set once": "Ställ in en gång",

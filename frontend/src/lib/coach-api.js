@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { api } from './api.js'
 import { DEMO } from './demo.js'
 import { MOBILE } from './mobile.js'
+import { WEB_COACH } from './coach-web.js'
 import { t, tn, getLang } from './i18n.js'
 import { useStore } from '../store/useStore.js'
 import { todayForCoach } from './coach-context.js'
@@ -34,7 +35,8 @@ const S = () => useStore.getState().S
 // validator only ever load on a phone that chose this). A paired phone takes the api() branch
 // like the web app does; nothing on the web or demo builds reaches this.
 let localMod = null
-const LOCAL = () => MOBILE && useStore.getState().coachLocal?.mode === 'byok'
+// The browser local build runs the same way, with the key the person saved in this browser.
+const LOCAL = () => (MOBILE || WEB_COACH) && useStore.getState().coachLocal?.mode === 'byok'
 const local = async () => {
   if (!localMod) {
     localMod = await import('./coach-local.js')
@@ -277,12 +279,13 @@ export const JOB_ERRORS = {
 // check anything, the person reading this is the operator, and the provider's own words
 // are the only thing that lets them fix it (a spent quota, a wrong model, a rejected key).
 export const BYOK_ERRORS = {
-  get auth() { return t('Your AI provider rejected the key on this phone. Check it under Settings → AI Coach.') },
-  get missing() { return t('The Coach isn’t set up on this phone. Check Settings → AI Coach.') },
+  // The browser build keeps its key on the device, not a phone: the wording says so.
+  get auth() { return WEB_COACH ? t('Your AI provider rejected the key on this device. Check it under Settings → AI Coach.') : t('Your AI provider rejected the key on this phone. Check it under Settings → AI Coach.') },
+  get missing() { return WEB_COACH ? t('The Coach isn’t set up on this device. Check Settings → AI Coach.') : t('The Coach isn’t set up on this phone. Check Settings → AI Coach.') },
   get provider() { return t('Your AI provider couldn’t answer.') },
   get cutoff() { return t('The connection to your AI provider dropped while the Coach was thinking. Try again, ideally on Wi-Fi.') },
   get unusable() { return t('The Coach answered with something the app couldn’t use.') },
-  get internal() { return t('Something went wrong on this phone.') }
+  get internal() { return WEB_COACH ? t('Something went wrong on this device.') : t('Something went wrong on this phone.') }
 }
 
 // The classes that mean the provider call itself failed, as opposed to the app or the server.
@@ -302,9 +305,14 @@ export function jobErrorText(cls, detail, serverText) {
   const own = LOCAL()
   // On a phone with its own key the instance-owner lines for the provider causes would point at
   // somebody who isn't there: the provider line plus the provider's own words says it better.
-  const base = own
+  let base = own
     ? (BYOK_ERRORS[cls] || (PROVIDER_CLASSES.has(cls) && !['timeout', 'missing'].includes(cls) ? BYOK_ERRORS.provider : JOB_ERRORS[cls]) || BYOK_ERRORS.internal)
     : (JOB_ERRORS[cls] || serverText || JOB_ERRORS.internal)
+  // In a browser a failed call often means the browser itself refused it (an extension, a network
+  // filter, CORS), which the phone never sees. Say so only for the network-shaped classes.
+  if (own && WEB_COACH && (cls === 'unreachable' || cls === 'cutoff')) {
+    base = `${base} ${t('If it keeps failing, a browser extension or network filter may be blocking the request.')}`
+  }
   const why = own && detail ? String(detail).trim().slice(0, 300) : ''
   return why ? `${base}\n${why}` : base
 }

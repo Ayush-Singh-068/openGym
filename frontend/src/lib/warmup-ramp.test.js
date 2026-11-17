@@ -185,7 +185,18 @@ describe('saving today’s warm-ups as your own', () => {
     expect(cleanOwnRow({ wb: true, r: 99 })).toEqual({ wb: true, r: 30 })
     expect(ownRowsOf({ warmupRows: Array.from({ length: 9 }, () => ({ wp: 50, r: 5 })) })).toHaveLength(5)
   })
-  it('a block of your own with nothing to warm up toward is empty', () => {
-    expect(warmupBlock(state(), cfg(BENCH, { weight: 0, warmup: 'own', warmupRows: [{ wp: 50, r: 5 }] }), [{ w: 0, r: 5 }], { grid: 2.5 })).toEqual([])
+  it('a block of your own with no work weight yet still lists its rungs, empty of kg, with their rep ranges', () => {
+    const rows = warmupBlock(state(), cfg(BENCH, { weight: 0, warmup: 'own', warmupRows: [{ wb: true, r: 10 }, { wp: 50, r: 5, rMin: 4 }] }), [{ w: 0, r: 5 }], { grid: 2.5 })
+    expect(rows).toEqual([
+      { w: 0, r: 10, done: false, phase: 'warmup', warmup: true, wb: true },
+      { w: 0, r: 5, rMin: 4, done: false, phase: 'warmup', warmup: true, wp: 50 },
+    ])
+  })
+  it('a generated block with no work weight stays empty', () => {
+    expect(warmupBlock(state(), cfg(BENCH, { weight: 0, warmup: 'auto' }), [{ w: 0, r: 5 }], { grid: 2.5 })).toEqual([])
+  })
+  it('keeps a rep range below the top only', () => {
+    expect(cleanOwnRow({ wp: 40, r: 8, rMin: 6 })).toEqual({ wp: 40, r: 8, rMin: 6 })
+    expect(cleanOwnRow({ wp: 40, r: 8, rMin: 9 })).toEqual({ wp: 40, r: 8 })
   })
 })

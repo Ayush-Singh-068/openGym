@@ -948,7 +948,10 @@ export default function Stats() {
 
     <div className="card">
       <SeasonDeco spot="stats-heatmap" />
-      <h2>{t('Activity (last 12 months)')}</h2>
+      <div className="row between">
+        <h2>{t('Activity (last 12 months)')}</h2>
+        <button type="button" className="btn plain small" onClick={() => nav('/calendar')}>{t('Open calendar')}</button>
+      </div>
       <Heatmap
         S={S}
         metric={S.heatmapMetric === 'vol' ? 'vol' : 'time'}

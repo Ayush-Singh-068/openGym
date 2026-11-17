@@ -294,13 +294,16 @@ describe('Home — the today row follows today\'s plan, not just the last sessio
   const today = todayISO()
   const at = (id, start, name) => ({ id: 'w-' + id + start, d: today, start, end: start + 1000, routineIds: id ? [id] : [], routineId: id, name: name || routines.find(r => r.id === id).name, entries: [] })
   const tag = () => host.querySelector('.today-row .tag')?.textContent
+  // The Start the row used to carry as a tag is the card's own primary button now.
+  const startBtn = () => [...host.querySelectorAll('.hero-acts button')].find(b => /^Start/.test(b.textContent.trim()))
 
   it('a queue session done today: the row offers the next one, like the progress row', () => {
     setS({ workouts: [at('d1', Date.now() - 3600000)] })
     mount()
     expect(status()).toBe('Next: US W1 D2, today')
     expect(todayTitle()).toBe('US W1 D2')
-    expect(tag()).toBe('Start')
+    expect(startBtn()).toBeTruthy()
+    expect(tag()).toBeUndefined()
   })
 
   it('a freestyle session on a planned day leaves the plan offered', () => {
@@ -308,7 +311,8 @@ describe('Home — the today row follows today\'s plan, not just the last sessio
     setS({ queue: null, week: { [wd]: ['own'] }, workouts: [at(null, Date.now() - 3600000, 'Freestyle')] })
     mount()
     expect(todayTitle()).toBe('Core')
-    expect(tag()).toBe('Start')
+    expect(startBtn()).toBeTruthy()
+    expect(tag()).toBeUndefined()
   })
 
   it('the planned routine done today still reads as done', () => {
@@ -330,7 +334,8 @@ describe('Home — the today row follows today\'s plan, not just the last sessio
     expect(chipTexts()).toEqual(['US W1 D1Up next', 'US W1 D2Later', 'US W1 D3Later'])
     expect(status()).toBe('Next: US W1 D1, today')
     expect(todayTitle()).toBe('US W1 D1')
-    expect(tag()).toBe('Start')
+    expect(startBtn()).toBeTruthy()
+    expect(tag()).toBeUndefined()
   })
 })
 

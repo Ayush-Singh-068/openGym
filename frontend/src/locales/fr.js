@@ -1,5 +1,7 @@
 // French UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ {0} autre changement",
+  "+ {0} more changes": "+ {0} autres changements",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Montres",
   "Set once": "À régler une fois",

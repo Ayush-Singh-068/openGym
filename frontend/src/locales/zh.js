@@ -1,5 +1,7 @@
 // Simplified Chinese UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ 另外 {0} 项变更",
+  "+ {0} more changes": "+ 另外 {0} 项变更",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "手表",
   "Set once": "设置一次",

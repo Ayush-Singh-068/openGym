@@ -1,5 +1,7 @@
 // Persian UI strings. Keys are the English source strings.
 export default {
+  "+ {0} more change": "+ {0} تغییر دیگر",
+  "+ {0} more changes": "+ {0} تغییر دیگر",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "ساعت‌ها",
   "Set once": "یک‌بار تنظیم",

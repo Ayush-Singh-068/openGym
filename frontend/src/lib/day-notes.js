@@ -19,9 +19,16 @@ import { todayISO } from './format.js'
 
 /** The quick picks, in the order the sheet shows them. Labels are English source strings. */
 export const DAY_NOTE_TAGS = ['sick', 'travel', 'rest', 'injured']
-export const DAY_NOTE_LABEL = { sick: 'Sick', travel: 'Travelling', rest: 'Rest day', injured: 'Injured' }
+export const DAY_NOTE_LABEL = { sick: 'Sick', travel: 'Travelling', rest: 'Rest day', injured: 'Injured', busy: 'Busy', other: 'Other' }
 // Icons the set already has (components/Icon.jsx): under the weather, away, asleep, ouch.
-export const DAY_NOTE_ICON = { sick: 'cloud', travel: 'globe', rest: 'moon', injured: 'warning' }
+export const DAY_NOTE_ICON = { sick: 'cloud', travel: 'globe', rest: 'moon', injured: 'warning', busy: 'clock', other: 'note' }
+
+// Skip reasons added by the trainer's Skip sheet. They are valid tags on a note, but they are not
+// quick picks in the day-note sheet. Only sick/travel excuse a streak week (api/coach/core/streak.js
+// EXCUSE_TAGS); busy and other are shown but follow the normal streak rules.
+export const SKIP_TAGS = ['travel', 'sick', 'busy', 'other']
+const ALL_TAGS = [...DAY_NOTE_TAGS, 'busy', 'other']
+export const SKIP_LABEL = { travel: 'Travel', sick: 'Sick', busy: 'Busy', other: 'Other' }
 
 const isMap = v => !!v && typeof v === 'object' && !Array.isArray(v)
 const ISO = /^\d{4}-\d{2}-\d{2}$/
@@ -29,7 +36,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/
 /** A stored entry read back: { tag, text } with the junk left out, or null for none or a cleared one. */
 export function readDayNote(entry) {
   if (!isMap(entry)) return null
-  const tag = DAY_NOTE_TAGS.includes(entry.tag) ? entry.tag : null
+  const tag = ALL_TAGS.includes(entry.tag) ? entry.tag : null
   const text = typeof entry.text === 'string' ? entry.text.trim().slice(0, NOTE_MAX) : ''
   return tag || text ? { tag, text } : null
 }

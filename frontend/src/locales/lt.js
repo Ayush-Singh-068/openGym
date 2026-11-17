@@ -1,5 +1,7 @@
 // Lithuanian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "+ {0} more change": "+ dar {0} pakeitimas",
+  "+ {0} more changes": { one: "+ dar {0} pakeitimas", few: "+ dar {0} pakeitimai", many: "+ dar {0} pakeitimo", other: "+ dar {0} pakeitimų" },
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Laikrodžiai",
   "Set once": "Nustatoma kartą",

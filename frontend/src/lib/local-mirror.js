@@ -1,3 +1,4 @@
+import { dateLocale } from './i18n-core.js'
 /* The local build's second copy of the profile (VITE_LOCAL=1, lib/demo.js LOCAL_BUILD).
  *
  * localStorage is the main store (store/useStore.js KEY). This is IndexedDB database
@@ -86,7 +87,8 @@ async function unpack(buf) {
 }
 const entry = async (json, ts) => {
   const gz = await pack(json)
-  return gz ? { gz, ts, size: json.length } : { json, ts, size: json.length }
+  const savedAt = Date.now()
+  return gz ? { gz, ts, size: json.length, savedAt } : { json, ts, size: json.length, savedAt }
 }
 
 /** The latest copy: { json, ts } or null. */
@@ -110,13 +112,18 @@ export async function writeMirror(json, ts) {
     const prev = await req(db.transaction(SNAPS).objectStore(SNAPS).get(today))
     const refresh = !prev || (ts - (prev.ts || 0) >= SNAP_EVERY_MS && !shrank(prev.size, json.length))
     const snap = refresh ? await entry(json, ts) : null   // compressed before the transaction opens
+    const savedAt = Date.now()
     const tx = db.transaction([STATE, SNAPS], 'readwrite')
-    tx.objectStore(STATE).put({ json, ts }, 'latest')
+    tx.objectStore(STATE).put({ json, ts, savedAt }, 'latest')
+    // A tiny record beside the big one, so the live "Auto-saved" line never loads the whole profile.
+    tx.objectStore(STATE).put({ savedAt, ts, size: json.length }, 'latest-meta')
     const snaps = tx.objectStore(SNAPS)
     if (snap) snaps.put(snap, today)
     const keys = await req(snaps.getAllKeys())
     for (const k of pruneKeys(keys)) snaps.delete(k)
     await done(tx)
+    lastSavedAt = savedAt
+    for (const f of [...listeners]) { try { f(savedAt) } catch { /* a bad listener must not stop the save */ } }
     return true
   } catch { return false }
 }
@@ -129,7 +136,8 @@ export async function listSnapshots() {
     const store = db.transaction(SNAPS).objectStore(SNAPS)
     const keys = await req(store.getAllKeys())
     const vals = await req(store.getAll())
-    return keys.map((id, i) => ({ id, ts: vals[i]?.ts || 0, size: vals[i]?.size || 0 })).sort((a, b) => (a.id < b.id ? 1 : -1))
+    // The write time when the copy has one; older copies fall back to the profile stamp.
+    return keys.map((id, i) => ({ id, ts: vals[i]?.savedAt || vals[i]?.ts || 0, size: vals[i]?.size || 0 })).sort((a, b) => (a.id < b.id ? 1 : -1))
   } catch { return [] }
 }
 
@@ -183,3 +191,60 @@ export function flushMirror() {
 export async function keepStorage() {
   try { return (await navigator.storage?.persist?.()) === true } catch { return false }
 }
+
+// When the latest automatic copy was written, and who wants to hear about each new one.
+let lastSavedAt = null
+const listeners = new Set()
+
+/** Calls `fn(savedAt)` after every successful automatic save. Returns the unsubscribe function. */
+export function onMirrorSaved(fn) { listeners.add(fn); return () => listeners.delete(fn) }
+
+/** When the latest automatic copy was written (ms since epoch), or null when there is none yet.
+ *  Reads the small meta record, falling back to the full record of an older copy. */
+export async function latestSavedAt() {
+  if (lastSavedAt != null) return lastSavedAt
+  try {
+    const db = await open()
+    if (!db) return null
+    const meta = await req(db.transaction(STATE).objectStore(STATE).get('latest-meta'))
+    if (meta && Number(meta.savedAt) > 0) return Number(meta.savedAt)
+    const full = await req(db.transaction(STATE).objectStore(STATE).get('latest'))
+    const at = Number(full?.savedAt)
+    return at > 0 ? at : null
+  } catch { return null }
+}
+
+/** How long ago `ts` was, as a count and a unit, for "(12 seconds ago)". Pure.
+ *  { unit: 'now' } under 5 seconds; then seconds (<60), minutes (<60), hours (<48), days. */
+// How long ago a copy was, as { unit, n, text }. `text` is the phrase in the UI language, from
+// Intl.RelativeTimeFormat ("12 seconds ago", "1 day ago"), so no pack needs a plural key per unit.
+// A time in the future reads as now.
+export function agoOf(ts, now = Date.now()) {
+  const sec = Math.max(0, Math.round((now - ts) / 1000))
+  let out
+  if (sec < 5) out = { unit: 'now', n: 0 }
+  else if (sec < 60) out = { unit: 'seconds', n: sec }
+  else {
+    const min = Math.floor(sec / 60)
+    if (min < 60) out = { unit: 'minutes', n: min }
+    else {
+      const hr = Math.floor(min / 60)
+      out = hr < 48 ? { unit: 'hours', n: hr } : { unit: 'days', n: Math.floor(hr / 24) }
+    }
+  }
+  return { ...out, text: agoText(out) }
+}
+function agoText({ unit, n }) {
+  const value = unit === 'now' ? 0 : n
+  const word = unit === 'now' ? 'second' : unit.slice(0, -1)
+  try { return new Intl.RelativeTimeFormat(dateLocale(), { numeric: 'auto' }).format(-value, word) }
+  catch { return new Date(Date.now() - value * 1000).toLocaleString(dateLocale()) }
+}
+
+/** 'YYYY-MM-DD-HHMM' of a date in the device's own clock: the stamp on a backup file's name. */
+export function backupStamp(d = new Date()) {
+  const p = n => String(n).padStart(2, '0')
+  return `${dayKey(d)}-${p(d.getHours())}${p(d.getMinutes())}`
+}
+/** 'opengym-backup-2026-09-16-1405.json' (ext 'json' or 'zip'). */
+export const backupFileName = (ext = 'json', d = new Date()) => `opengym-backup-${backupStamp(d)}.${ext}`

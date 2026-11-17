@@ -70,5 +70,7 @@ export function applySixDayPpl(s, bundle, { schedule } = {}) {
   // The deload week this plan asks for, counted from this week.
   const base = deloadCycleOf(s)
   s.deloadCycle = { ...base, ...PPL_DELOAD, from: weekKey(todayISO(), weekStartOf(s)) }
+  // A plan you load should open each lift at what you last did, not at the slot's printed weight.
+  s.startFrom = 'last'
   return { ...result, routines: bundle.routines.length, ids: finalIds, added: missing.length }
 }

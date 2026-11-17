@@ -1,5 +1,7 @@
 // Polish UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  '+ {0} more change': "+ {0} zmiana",
+  '+ {0} more changes': { one: '+ {0} zmiana', few: '+ {0} zmiany', many: '+ {0} zmian' },
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Zegarki",
   "Set once": "Ustaw raz",

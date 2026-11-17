@@ -2,6 +2,8 @@
 export const metadata = { description: 'Diario personale di allenamento e peso corporeo' }
 
 export default {
+  "+ {0} more change": "+ {0} altra modifica",
+  "+ {0} more changes": "+ {0} altre modifiche",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Orologi",
   "Set once": "Da impostare una volta",

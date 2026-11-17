@@ -85,7 +85,7 @@ export function pageVisible(page, ctx) {
   // A page of a module that is off (ctx.mod answers isOn for this profile; absent: all on).
   if (PAGES[page]?.mod && ctx.mod && !ctx.mod(PAGES[page].mod)) return false
   if (page === 'reminders') return !!(ctx.user || ctx.mobile)
-  if (page === 'coach') return !!ctx.mobile && !ctx.offline
+  if (page === 'coach') return (!!ctx.mobile && !ctx.offline) || !!ctx.webCoach
   // The phone app's network log: there only (a browser has its own developer tools for that).
   if (page === 'network') return !!ctx.mobile
   // openGym Offline (lib/build-caps.js) has no network: nothing that needs a server or a connection.
@@ -319,7 +319,7 @@ export const SEARCH = [
   { page: 'integrations', title: 'MCP server', net: true, icon: 'plug', tint: 'var(--purple)', mod: 'integrations', kw: 'mcp claude desktop cursor llm agent ai model context protocol api' },
   { page: 'integrations', title: 'WebDAV backup', net: true, icon: 'cloud', tint: 'var(--blue)', kw: 'webdav nextcloud owncloud cloud backup daily automatic', when: c => !c.demo },
   { page: 'integrations', title: 'Calendar feed', net: true, icon: 'calendar', tint: 'var(--red)', mod: 'integrations', kw: 'calendar ics ical google outlook apple planned sessions feed subscribe', when: c => c.demo || !c.user || c.apiTokens },
-  { page: 'integrations', title: 'AI Coach', net: true, icon: 'sparkles', tint: 'var(--green)', mod: 'coach', kw: 'ai coach model llm plan review', when: c => c.mobile },
+  { page: 'integrations', title: 'AI Coach', net: true, icon: 'sparkles', tint: 'var(--green)', mod: 'coach', kw: 'ai coach model llm plan review', when: c => c.mobile || c.webCoach },
   { page: 'integrations', mod: 'health', title: 'Garmin', icon: 'watch', tint: 'var(--grey)', kw: 'garmin fenix forerunner venu watch heart rate' },
   { page: 'integrations', mod: 'health', title: 'COROS', icon: 'watch', tint: 'var(--grey)', kw: 'coros watch heart rate' },
   { page: 'integrations', mod: 'health', title: 'Polar', icon: 'watch', tint: 'var(--grey)', kw: 'polar watch heart rate strap' },

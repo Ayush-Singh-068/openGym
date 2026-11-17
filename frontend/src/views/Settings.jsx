@@ -14,7 +14,7 @@ import { copyText } from '../lib/clipboard.js'
 import { useUI } from '../store/useUI.js'
 import { activeGym, gymLabel, switchGym } from '../lib/gym-inventory.js'
 import { startTour, TUTORIALS, TUTORIAL_COPY, tutorialDone } from '../lib/tour.js'
-import { ACCENTS, ACCENT_NAMES, todayISO, localTZ, weekStartOf, MONDAY, SUNDAY, fmtPlate } from '../lib/format.js'
+import { ACCENTS, ACCENT_NAMES, localTZ, weekStartOf, MONDAY, SUNDAY, fmtPlate } from '../lib/format.js'
 import { inventoryFor, ownsPlates } from '../lib/plates.js'
 import { BAR_TYPES, ownBarDefault } from '../lib/bar.js'
 import { dumbbellsOf, ownsNoDumbbells } from '../lib/dumbbells.js'
@@ -52,6 +52,7 @@ import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, dateLocale } 
 import { nameIn, said } from '../lib/a11y-name.js'
 import { effectiveLang } from '../lib/default-lang.js'
 import { DEMO, LOCAL_BUILD, NO_SERVER, REPO } from '../lib/demo.js'
+import { WEB_COACH } from '../lib/coach-web.js'
 import { MOBILE, isAndroid, shareExport, shareExportBlob, syncReminder } from '../lib/mobile.js'
 import { NUDGE_COPY, NUDGE_TONES, toneOf } from '../lib/nudge.js'
 import { referencedFiles } from '../lib/media-refs.js'
@@ -74,7 +75,9 @@ import { durationSheet } from '../components/DurationWheel.jsx'
 import { showsConnection, showsLocalLine } from '../components/SyncBanner.jsx'
 import BackupFolderRow, { useBackupFolder, autoBackupSubtitle } from '../components/BackupFolderRow.jsx'
 import AppIconRow from '../components/AppIconRow.jsx'
-import LocalSnapshots from '../components/LocalSnapshots.jsx'
+import LocalSnapshots, { AutoSavedLine } from '../components/LocalSnapshots.jsx'
+import DesktopFolderBackup from '../components/DesktopFolderBackup.jsx'
+import { backupFileName } from '../lib/local-mirror.js'
 import { PinSettings } from '../components/PinLock.jsx'
 import { markExported } from '../lib/backup-reminder.js'
 import { AnimationQualityRow } from '../components/Animations.jsx'
@@ -147,7 +150,7 @@ export function SettingsRoute() {
   const modules = useStore(s => s.S.modules), checkIn = useStore(s => s.S.checkIn)
   const trainers = useStore(s => !!s.config?.trainers?.on)
   const apiTokens = useStore(s => !!s.config?.api_tokens)
-  const ctx = { user: useStore(s => s.user), mobile: MOBILE, offline: offlineBuild(), demo: DEMO, trainers, apiTokens, ios: MOBILE && platformNow() !== 'android', android: MOBILE && platformNow() !== 'ios', mod: id => isOn({ modules, checkIn }, id) }
+  const ctx = { user: useStore(s => s.user), mobile: MOBILE, offline: offlineBuild(), webCoach: WEB_COACH, demo: DEMO, trainers, apiTokens, ios: MOBILE && platformNow() !== 'android', android: MOBILE && platformNow() !== 'ios', mod: id => isOn({ modules, checkIn }, id) }
   if (page && (!PAGES[page] || !pageVisible(PAGES[page].parent || page, ctx) || !pageVisible(page, ctx))) return <Navigate to="/settings" replace />
   if (page === 'coach') return <Navigate to="/coach/setup" replace />
   return <Settings key={page || 'root'} page={page || null} find={loc.state?.find || null} via={loc.state?.via || null} entryKey={loc.key} />
@@ -373,7 +376,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
   // and the copy it exports is the one that has not reached the server.
   const doExport = async () => {
     const json = JSON.stringify(useStore.getState().S, null, 2)
-    const name = 'opengym-backup-' + todayISO() + '.json'
+    const name = backupFileName('json')
     // WKWebView can't download blob URLs — the native build hands the file to the share sheet.
     if (MOBILE) {
       try { await shareExport(json, name); toast(t('Backup exported')) } catch (e) { /* share sheet dismissed */ }
@@ -394,7 +397,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
     let out
     try { out = await exportBackupZip(st.S, { fetchOne: signedIn ? fetchToStore : null }) }
     catch { toast(t('Something went wrong')); return }
-    const name = 'opengym-backup-' + todayISO() + '.zip'
+    const name = backupFileName('zip')
     if (out.missing) toast(tn('{0} file could not be included', '{0} files could not be included', out.missing))
     if (MOBILE) {
       try { await shareExportBlob(out.blob, name); if (!out.missing) toast(t('Backup exported')) } catch (e) { /* share sheet dismissed */ }
@@ -478,7 +481,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
   const nfcOK = useNfcSupported()
   const canVibrate = vibrateSupported()
   const ctx = {
-    user, mobile: MOBILE, offline, android, ios: MOBILE && ios, appIcons: MOBILE && !!platformNow(), demo: DEMO, wakeOK, hasMedia, pwOn, webauthn: webauthnOK(),
+    user, mobile: MOBILE, offline, webCoach: WEB_COACH, android, ios: MOBILE && ios, appIcons: MOBILE && !!platformNow(), demo: DEMO, wakeOK, hasMedia, pwOn, webauthn: webauthnOK(),
     sound: !!S.sound, playOnSilent: playOnSilentSupported(), canVibrate, vibrate: S.vibrate !== false,
     recordHints: recordHintsOn(S),
     profiles: (S.equipProfiles || []).length > 0, nameLang: EXERCISE_NAME_LANGS.includes(baseLang(lang)),
@@ -1261,6 +1264,8 @@ export default function Settings({ page = null, find = null, via = null, entryKe
       </Section>}
       {LOCAL_BUILD && <Section title={t('Automatic copies in this browser')}
         footer={t('Kept for 14 days. They are lost if you clear this site’s data or remove the app, so export a backup file now and then.')}>
+        <AutoSavedLine />
+        <DesktopFolderBackup />
         <LocalSnapshots />
       </Section>}
       {/* Apple Health / Health Connect moved to Integrations (1.4.4); the way there stays here. */}

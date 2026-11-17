@@ -1,5 +1,7 @@
 // Vietnamese UI strings. Generated for openGym.
 export default {
+  "+ {0} more change": "+ {0} thay đổi nữa",
+  "+ {0} more changes": "+ {0} thay đổi nữa",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Đồng hồ",
   "Set once": "Đặt một lần",
