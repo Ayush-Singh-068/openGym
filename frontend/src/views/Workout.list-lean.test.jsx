@@ -165,10 +165,11 @@ describe('list layout: the ramp is one calm row', () => {
     expect(container.querySelectorAll('.setrow')).toHaveLength(7)
   })
 
-  it('puts no last-time hint under the rows: it is in Details', () => {
+  it('puts no last-time hint under the rows: it is one line under the name, and not in Details', () => {
     mount()
     expect(container.querySelectorAll('.lasthint')).toHaveLength(0)
+    expect(container.querySelector('.calm-last').textContent).toContain('Last time')
     tap([...container.querySelectorAll('.calm-fold')].find(b => b.textContent === 'Details'))
-    expect(container.querySelector('.refline').textContent).toContain('Last time')
+    expect(container.querySelector('.refline')).toBeNull()
   })
 })

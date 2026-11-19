@@ -4,7 +4,9 @@
 // part missing from gymOpts counts as on. This file is the pure side: whether a part is on, which
 // set comes next, the line that says so, and which sets "Complete as planned" ticks.
 import { isWarmupRow, isSideSet, WEIGHT_ORIGIN_MANUAL } from './workout-model.js'
-import { modeOf, setsRepsOf, exLine, isBw, setsFromRows } from './history.js'
+import { modeOf, setsRepsOf, exLine, isBw, isPerSide, setsFromRows, setLabel } from './history.js'
+import { isPyramid } from './pyramid.js'
+import { backoffStepOf } from './backoff.js'
 import { fmtNum } from './format.js'
 import { t, tn, tnf, exerciseNameFor } from './i18n-core.js'
 import { EXIDX } from './exercises.js'
@@ -151,10 +153,10 @@ export function asPlannedRows(entry) {
 }
 
 /**
- * The one muted line under an exercise's name in the List layout: "4 × 5–6 · 60 kg", the sets and
- * the reps (a range, a hold's seconds, minutes for cardio) and the working weight when there is one.
- * The weight is the first work row's, as the rows show it today; a 0 leaves it out. `unit` is the
- * unit the entry is in, `speedUnit` the profile's speed unit (cardio). Never throws.
+ * The one muted line under an exercise's name in the List layout, in words: "4 sets · 5–6 reps ·
+ * 60 kg", "3 sets · 45 s" for a hold (minutes for cardio, as the plan line says them). The weight is
+ * the first work row's, as the rows show it today; a 0 leaves it out, added weight reads "+10 kg".
+ * `unit` is the unit the entry is in, `speedUnit` the profile's speed unit (cardio). Never throws.
  */
 export function exerciseTargetLine(entry, unit = 'kg', speedUnit) {
   if (!entry) return ''
@@ -164,7 +166,79 @@ export function exerciseTargetLine(entry, unit = 'kg', speedUnit) {
   const w = !row ? 0 : isSideSet(row) ? Math.max(Number(row.sides?.L?.w) || 0, Number(row.sides?.R?.w) || 0) : Number(row.w) || 0
   // The count follows the rows, so a set added by hand reads as one more; with no rows the plan's.
   const sets = work.length ? setsFromRows(cfg, work.length) : cfg.sets
-  try { return exLine({ ...cfg, sets, weight: w > 0 ? w : 0 }, unit, speedUnit) } catch { return '' }
+  try {
+    const mode = modeOf(cfg)
+    // Cardio, a carry, a pyramid, a set range and back-off sets keep the plan's own wording.
+    const own = (mode !== 'reps' && mode !== 'time') || isPyramid(cfg) || cfg.setsMax > sets || (mode === 'reps' && w > 0 && backoffStepOf(cfg, unit) > 0)
+    if (own) return exLine({ ...cfg, sets, weight: w > 0 ? w : 0 }, unit, speedUnit)
+    const parts = [tn('{0} set', '{0} sets', Math.max(1, Number(sets) || 1))]
+    if (mode === 'time') parts.push(t('{0} s', Number(cfg.sec) || 45))
+    else {
+      const lo = Number(cfg.repsMin) || 0
+      const hi = Number(cfg.reps) || 0
+      if (lo > 0 && lo < hi) parts.push(t('{0} reps', lo + '–' + hi))
+      else if (hi > 0) parts.push(tn('{0} rep', '{0} reps', hi))
+    }
+    if (w > 0) parts.push((isBw(cfg) ? '+' : '') + fmtNum(w) + ' ' + unit)
+    if (isPerSide(cfg)) parts.push(t('per side'))
+    return parts.join(' · ')
+  } catch { return '' }
+}
+
+/**
+ * The one muted line of the last session of an exercise, every set in it: "Last time: 120 × 10 ·
+ * 120 × 10 · 120 × 9", "Last time: 45 s · 40 s" for holds. `last` is lastEntryFor's answer (the work
+ * sets that counted, `sets`, and the `target` they were logged against). '' when there is none.
+ * Runs and carries use the set's own wording (setLabel). Never throws.
+ */
+export function lastTimeLine(id, last, speedUnit) {
+  try {
+    const sets = (last?.sets || []).filter(Boolean)
+    if (!sets.length) return ''
+    const cfg = { ...(last.target || {}), id }
+    const mode = modeOf(cfg)
+    const bw = isBw(cfg)
+    const part = s => {
+      if (mode === 'time') { const sec = Number(s.sec) || 0; return sec > 0 ? t('{0} s', sec) : '' }
+      if (mode !== 'reps') return setLabel(id, s, last.target, speedUnit)
+      const sided = isSideSet(s)
+      const w = sided ? Math.max(Number(s.sides?.L?.w) || 0, Number(s.sides?.R?.w) || 0) : Number(s.w) || 0
+      const r = sided ? Number(s.sides?.L?.r) || 0 : Number(s.r) || 0
+      if (!(r > 0)) return w > 0 ? fmtNum(w) : ''
+      const reps = sided ? t('{0}/side', r) : r
+      if (w > 0) return (bw ? '+' : '') + fmtNum(w) + ' × ' + reps
+      return sided ? t('{0}/side', r) : tn('{0} rep', '{0} reps', r)
+    }
+    const parts = sets.map(part).filter(Boolean)
+    return parts.length ? t('Last time: {0}', parts.join(' · ')) : ''
+  } catch { return '' }
+}
+
+/**
+ * What a finished, folded exercise says: "Done · best set 62.5 kg × 6" (the best set by weight, then
+ * reps; a hold by its longest time), or just "Done" for a run or a carry. `entry` is the entry as
+ * its exercise shows it (viewEntry), `unit` the unit it is in. Never throws.
+ */
+export function exerciseDoneLine(entry, unit = 'kg') {
+  try {
+    const cfg = { ...(entry?.target || {}), id: entry?.id }
+    const mode = modeOf(cfg)
+    const done = (entry?.sets || []).filter(s => s && !isWarmupRow(s) && (isSideSet(s) ? s.sides?.L?.done && s.sides?.R?.done : s.done))
+    if (!done.length || (mode !== 'reps' && mode !== 'time')) return t('Done')
+    const num = (s, f) => (isSideSet(s) ? Number(s.sides?.L?.[f]) || 0 : Number(s[f]) || 0)
+    const weight = s => (isSideSet(s) ? Math.max(Number(s.sides?.L?.w) || 0, Number(s.sides?.R?.w) || 0) : Number(s.w) || 0)
+    if (mode === 'time') {
+      const best = done.reduce((a, s) => ((Number(s.sec) || 0) > (Number(a.sec) || 0) ? s : a))
+      return Number(best.sec) > 0 ? t('Done · best set {0}', t('{0} s', Number(best.sec))) : t('Done')
+    }
+    const best = done.reduce((a, s) => (weight(s) > weight(a) || (weight(s) === weight(a) && num(s, 'r') > num(a, 'r')) ? s : a))
+    const w = weight(best)
+    const r = num(best, 'r')
+    const reps = isSideSet(best) ? t('{0}/side', r) : r
+    if (!(r > 0)) return w > 0 ? t('Done · best set {0}', fmtNum(w) + ' ' + unit) : t('Done')
+    const text = w > 0 ? (isBw(cfg) ? '+' : '') + fmtNum(w) + ' ' + unit + ' × ' + reps : isSideSet(best) ? reps : tn('{0} rep', '{0} reps', r)
+    return t('Done · best set {0}', text)
+  } catch { return t('Done') }
 }
 
 /**

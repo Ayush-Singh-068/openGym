@@ -36,6 +36,8 @@ import CircuitCard from '../components/CircuitCard.jsx'
 import { useCircuit } from '../store/useCircuit.js'
 import WorkoutThumb, { hasWorkoutMedia } from '../components/WorkoutThumb.jsx'
 import WorkingWeightSheet from '../components/WorkingWeightSheet.jsx'
+import LoadSheet from '../components/LoadSheet.jsx'
+import { loadModel, withLoadSetup, sledBaseFor } from '../lib/load-setup.js'
 import { workoutSettingsSheet } from '../components/WorkoutSettingsSheet.jsx'
 import { SessionMapButton } from '../components/SessionMuscles.jsx'
 import { durationSheet } from '../components/DurationWheel.jsx'
@@ -81,12 +83,12 @@ import { SeasonDeco } from '../components/Seasonal.jsx'
 import { entryDbLoad, bellsIn, ownedWeightsFor, stepOwned } from '../lib/dumbbells.js'
 import { sessionGymView, gymsOf, activeGym, gymLabel, switchGym, reRoundOpenSets } from '../lib/gym-inventory.js'
 import { gymNoteFor } from '../lib/journal.js'
-import { exView, viewEntry, inEntryUnit, shownWeight } from '../lib/ex-unit.js'
+import { exView, viewEntry, inEntryUnit, shownWeight, exUnitOf } from '../lib/ex-unit.js'
 import { setTrendOn, setTrendsFor, trendGlyph, trendLabel } from '../lib/set-trend.js'
 import { formulaOf } from '../lib/onerm.js'
 import { cues } from '../lib/spoken-cues.js'
 import { nextKindOf, playCueIf } from '../lib/cue-sounds.js'
-import { gymOpt, nextUpFor, nextSetPos, asPlannedRows, exerciseTargetLine, needsWorkingWeight, withWorkingWeight } from '../lib/gym-mode.js'
+import { gymOpt, nextUpFor, nextSetPos, asPlannedRows, exerciseTargetLine, lastTimeLine, exerciseDoneLine, needsWorkingWeight, withWorkingWeight } from '../lib/gym-mode.js'
 import { useWakeLockStatus } from '../lib/wakelock.js'
 import { recordBaseline, entryRecords, recordHint, liveRecordsOn, recordHintsOn, recordSoundOn } from '../lib/set-records.js'
 import { RecordMark, RecordHintLine } from '../components/SetRecord.jsx'
@@ -1003,14 +1005,39 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
       {row}
     </SwipeRow>
   }
-  // The calm List card's header: a small picture, the name, one muted line ("4 × 5–6 · 60 kg") and
-  // the ⋯ menu. The picture opens How to do it.
+  // The calm card's last-time line: every set of the last session of this exercise in one muted
+  // line. Read from the history (never from today's rows), so editing a row does not move it.
+  const calmLast = calm ? lastTimeLine(entry.id, last, speedUnit) : ''
+  // The calm card's one sentence about the weight (lib/load-setup.js), under the current row only:
+  // the first set still to do of the current exercise. It follows the weight box as it changes.
+  const rowDone = x => (isSideSet(x) ? x.sides.L.done && x.sides.R.done : x.done)
+  const curRow = calm && mode === 'reps' && isOn(S, 'plates') && S.active.cur === entryIdx ? entry.sets.findIndex(x => !isWarmupRow(x) && !rowDone(x)) : -1
+  const curRowW = curRow < 0 ? 0 : (r => (isSideSet(r) ? Math.max(Number(r.sides.L?.w) || 0, Number(r.sides.R?.w) || 0) : Number(r.w) || 0))(entry.sets[curRow])
+  const loadInfo = curRow >= 0 ? (() => { try { return loadModel(S, cfg, curRowW, { bells }) } catch { return null } })() : null
+  // Whether the sheet behind the sentence carries the progression reason. If it does, the calm Details
+  // leaves its progression line out (one place only). With no sentence (bodyweight, another exercise
+  // than the current one, a finished card, Plates off) or a "nothing logged yet" plan, the line stays in Details.
+  // While the sled weight is still to be set the sheet opens on that question and shows no reason: Details keeps it.
+  const whyInSheet = !!loadInfo?.text && !loadInfo.needsBase && !!guidance && plan?.kind !== 'first'
+  // The sled weight already known for this exercise, so it is not asked for again.
+  const sledBase = loadInfo ? sledBaseFor(S, cfg) : 0
+  // Tapping it opens "About this weight" (or, for a sled of unknown weight, the one question).
+  const openLoadSheet = () => {
+    const unit = S.unit
+    const why = whyInSheet ? t(...guidance.why) : ''
+    useUI.getState().openSheet(close => <LoadSheet model={loadInfo} name={exerciseNameText(ex)} step={loadStep} why={why} sledBase={sledBase} close={close}
+      onSaveBase={b => update(s => { s.loadSetup = withLoadSetup(s.loadSetup, entry.id, 'sled', { base: b, unit }) })}
+      onPickKind={k => update(s => { s.loadSetup = withLoadSetup(s.loadSetup, entry.id, k, { unit }) })} />)
+  }
+  // The calm List card's header: a small picture, the name, one muted line ("4 sets · 5–6 reps · 60 kg"),
+  // the last-time line and the ⋯ menu. The picture opens How to do it.
   const calmThumb = S.gifSize !== 'off' && hasWorkoutMedia(ex)
   const calmHeader = calm ? <div className="calm-hd">
     {calmThumb && <WorkoutThumb ex={ex} dense sayAs={exSay} onExpand={() => exerciseDetailSheet(ex)} />}
     <div className="calm-ti">
       <div className={(exerciseNameClass(ex) || '') + ' exname calm-name'}>{exerciseNameFor(ex)}</div>
       <div className="calm-sub">{exerciseTargetLine(entry, S.unit, speedUnit)}</div>
+      {calmLast && <div className="calm-last">{calmLast}</div>}
     </div>
     <div className="row calm-acts">
       {entry.note && <button className="iconbtn" aria-label={inEx(t('Note'))} title={t('Note')} style={{ color: 'var(--acc-ink)' }}
@@ -1081,8 +1108,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     {entry.sessionTarget && <div className="exnote" style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><Icon name="calendar" style={{ fontSize: 'var(--fs-footnote)', flex: 'none', transform: 'translateY(1px)' }} />
       <span>{entry.sessionTarget.by ? t('Today’s rows come from {0}. Your routine stays as it is.', entry.sessionTarget.by) : t('Today’s rows were planned for this day. Your routine stays as it is.')}</span></div>}
     {!calm && planLine}
-    {refLine}
-    {guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
+    {!calm && refLine}
+    {(!calm || !whyInSheet) && guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={inEx(t('Open exercise settings'))} onClick={onProgressionSettings}>
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' || plan.prog?.deload ? 'arrowDown' : plan.kind === 'programme' ? 'calendar' : 'lightbulb'} />
       <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}{guidance.prog?.rpe != null && <> · {t('aim for {0}', (r => `${r.k} ${fmtNum(r.v)}`)(rpeAs(guidance.prog.rpe, effortOf(S))))}</>}</span>
@@ -1090,8 +1117,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     {/* The skill ladder (lib/ladders.js): the next rung, and one tap to put it in the routine. */}
     {plan?.kind === 'ladder' && plan.next && EXIDX[plan.next] && <LadderNext entry={entry} next={plan.next} />}
   </>
-  // The calm card's last row: Details, closed until tapped. Open, it shows the facts above and the
-  // plates each set loads.
+  // The calm card's last row: Details, closed until tapped. Open, it shows the facts above. The plates
+  // live behind the weight sentence ("About this weight"), Last time under the name.
   const calmDetails = calm ? <>
     <button type="button" className="calm-fold" aria-expanded={detailsOpen} aria-label={inEx(t('Details'))} onClick={() => setDetailsOpen(o => !o)}>
       <span>{t('Details')}</span>
@@ -1099,7 +1126,6 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     </button>
     {detailsOpen && <div className="calm-details">
       {exFacts}
-      {loadSeq.map(x => <Fragment key={x.key}>{loadLine(x.key)}</Fragment>)}
     </div>}
   </> : null
   return <>
@@ -1163,6 +1189,8 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
             </button>
           </div>}
           {!calm && loadLine(String(i))}
+          {/* The calm card's one sentence about the weight, under the current set only. */}
+          {loadInfo?.text && i === curRow && <button type="button" className="calm-load" aria-label={inEx(loadInfo.text)} title={t('About this weight')} onClick={openLoadSheet}>{loadInfo.text}</button>}
           {/* Lean layouts: what this same work set did last time, a small muted line under the row. */}
           {leanOn && !calm && !warm && !pairHead && !pairTail && !isSideSet(s) && (() => {
             const prev = last?.sets?.[phaseNum - 1]
@@ -3012,7 +3040,7 @@ function ActiveWorkout() {
               onClick={() => setUnitOpen(u.join('-'), true)}>
               {u.map(idx => <span key={idx} className="row between" style={{ gap: 8 }}>
                 <span className={exerciseNameClass(exOr(A.entries[idx].id))} style={{ fontWeight: 600 }}>{exerciseNameFor(exOr(A.entries[idx].id))}</span>
-                <span className="tag acc nocap"><Icon name="check" />{t('{0} sets', A.entries[idx].sets.length)}</span>
+                <span className="tag acc nocap"><Icon name="check" />{calmList ? exerciseDoneLine(viewEntry(S, A.entries[idx]) || A.entries[idx], exUnitOf(S, A.entries[idx].id)) : t('{0} sets', A.entries[idx].sets.length)}</span>
               </span>)}
             </button> : multi ? (
               <div className="ss-card">

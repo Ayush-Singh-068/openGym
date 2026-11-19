@@ -2410,10 +2410,11 @@ describe('workout compact view', () => {
     }
     await mount([withExtras([false])], 0, state)
 
-    // The List keeps them under its Details row (closed until tapped).
+    // The List keeps the tags under its Details row (closed until tapped). The progression line is
+    // not there: it lives behind the weight sentence now ("About this weight").
     expect(container.querySelector('.progline')).toBeNull()
     await click([...container.querySelectorAll('.calm-fold')].find(b => b.textContent.trim() === 'Details'))
-    expect(container.querySelector('.progline')).toBeTruthy()
+    expect(container.querySelector('.progline')).toBeNull()
     expect(container.textContent).toContain('Best:')
     expect(container.textContent).toContain('Last time')
   })

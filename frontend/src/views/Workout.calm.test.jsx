@@ -69,15 +69,15 @@ function openMenu(el, k = 0) {
 const tick = (el, n) => act(() => el.querySelector(`[aria-label^="Set ${n} done"]`).click())
 
 describe('the calm card header', () => {
-  it('has the name and one muted line: sets × reps and the working weight', () => {
+  it('has the name and one muted line: sets, reps and the working weight, in words', () => {
     const el = mount([entry([w(60), w(60), w(60), w(60)])])
     expect(plain(el.querySelector('.calm-name').textContent)).toBe('barbell bench press')
-    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('4 × 5–6 · 60 kg')
+    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('4 sets · 5–6 reps · 60 kg')
   })
 
   it('leaves the weight out while it is 0', () => {
     const el = mount([entry([w(0), w(0), w(0)])])
-    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('3 × 5–6')
+    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('3 sets · 5–6 reps')
   })
 
   it('shows none of the old extras: no tags, plan line, progression line or last time above the sets', () => {
@@ -187,7 +187,7 @@ describe('Complete as planned never logs a weighted lift at 0 kg', () => {
     expect(sets().map(s => [s.w, s.r, s.done])).toEqual([[60, 6, true], [60, 6, true], [60, 6, true]])
     expect(useUI.getState().toastMsg).toBe('Sets done as planned: 3')
     expect(useUI.getState().toastAction.label).toBe('Undo')
-    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('3 × 5–6 · 60 kg')
+    expect(plain(el.querySelector('.calm-sub').textContent)).toBe('3 sets · 5–6 reps · 60 kg')
   })
 
   it('a set that already has a weight is not asked about', () => {

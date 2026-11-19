@@ -45,7 +45,8 @@ function mount(entries, patch = {}) {
   const S = clone(DEF)
   S.unit = 'lb'
   S.plates = { lb: HOME }
-  S.workoutView = 'list'
+  // Cards: the plate line sits under its row there. The List card has none (its one sentence about the weight is tested in Workout.load-sentence.test.jsx).
+  S.workoutView = 'cards'
   Object.assign(S, patch)
   S.active = { id: 'plates-test', d: '2026-09-14', start: Date.now(), routineId: null, name: 'Plates', bw: null, cur: 0, entries, workoutView: S.workoutView }
   useStore.setState({ S, user: null })
@@ -55,7 +56,7 @@ function mount(entries, patch = {}) {
   act(() => root.render(<MemoryRouter><Workout /></MemoryRouter>))
 }
 
-// The List layout keeps the plates under its Details row: open it first.
+// The List card shows no plate lines (Cards does): nothing to open first.
 const openDetails = () => { container.querySelectorAll('.calm-fold[aria-expanded="false"]').forEach(b => { if (b.textContent.trim() === 'Details') act(() => b.click()) }); return [] }
 const lines = () => openDetails().concat([...container.querySelectorAll('.plateline')]).map(el => ({
   text: el.querySelector('span').textContent,

@@ -210,6 +210,12 @@ export const DEF = {
   // leg press is 'single'; a barbell you never load plates on is 'none'. Absent or null = derived
   // from the equipment. Stamped like the plate list, for the same reason.
   loadKind: {},
+  // How each exercise's weight is counted, keyed by exercise id: { kind: 'bar' | 'sled' | 'stack' |
+  // 'dumbbell' | 'bodyweight' | 'total', base: the sled's own weight or null (kept when another kind is picked), u: the unit
+  // base is in, _ts } (lib/load-setup.js). Absent = counted by the catalogue's equipment. The weight
+  // box always holds the total load; this only says how the workout card explains it. A stamped map
+  // (lib/sync-merge.js STAMPED_MAPS), like loadKind.
+  loadSetup: {},
   // What a dumbbell or kettlebell weight means, keyed by exercise id: { mode: 'each' | 'total' |
   // null, _ts } (lib/dumbbells.js). Absent or null = as entered, counted once, which is how every
   // set was read before the choice existed. A routine slot can say its own (cfg.dbLoad).

@@ -82,10 +82,8 @@ describe('a pinned exercise in a running session', () => {
 
   it('loads lb plates on the 45 lb bar', () => {
     mount([entry(BENCH, [work(61.235)])], LB)
-    // The List layout keeps the plates under its Details row.
-    act(() => [...container.querySelectorAll('.calm-fold')].find(b => b.textContent.trim() === 'Details').click())
-    const line = container.querySelector('.plateline')
-    expect(line.textContent).toContain('45 per side')
+    // The List card says it in one sentence under the current set, in the exercise's own unit (61.235 kg is 135 lb).
+    expect(container.querySelector('.calm-load').textContent).toBe('135 lb total = bar 45 + 45 on each side')
   })
 
   it('walks the lb dumbbell rack on a kg profile', () => {
