@@ -41,7 +41,8 @@ import { exerciseNameText, fmtNum } from './format.js'
 import { setLabel, supersetUnits, fmtSec, fmtMetres } from './history.js'
 import { viewRow, exUnitTag, exUnitOf } from './ex-unit.js'
 import { isWarmupRow } from './workout-model.js'
-import { nextUnfinishedUnit, restSecFor } from './supersetFlow.js'
+import { nextUnfinishedUnit } from './supersetFlow.js'
+import { restPlan } from './rest-adapt.js'
 import { speedUnitOf, fmtSpeed } from './speed.js'
 import { fmtDist, distUnitOf } from './distance.js'
 import { hasIncline, hasLevel } from './incline.js'
@@ -104,10 +105,11 @@ export function upcomingSets (S) {
   const out = []
   for (const unit of order) {
     const rounds = Math.max(0, ...unit.map(i => (A.entries[i]?.sets || []).length))
-    let rest = 0
-    try { rest = restSecFor(A.entries, unit, num(S.restSec) || 0) || 0 } catch { rest = num(S.restSec) || 0 }
+    // The rest after each set, from the one shared helper (lib/rest-adapt.js restPlan), as the workout screen starts it.
+    const restOf = r => { try { return restPlan(S, A.entries, unit, unit[0], r).sec || 0 } catch { return num(S.restSec) || 0 } }
     for (let r = 0; r < rounds; r++) {
       const inRound = unit.filter(i => { const s = A.entries[i]?.sets?.[r]; return s && !s.done })
+      const rest = inRound.length ? restOf(r) : 0
       inRound.forEach((i, k) => out.push({ entryIdx: i, setIdx: r, restAfter: k === inRound.length - 1 ? rest : 0, unit: unit[0] }))
     }
   }

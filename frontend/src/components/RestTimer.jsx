@@ -156,7 +156,8 @@ export default function RestTimer() {
   // (both labels share one cell, one of them hidden), and the clock keeps room for the other of
   // its two faces (data-alt, a hidden line in index.css): the row never reflows when the rest
   // turns Ready, so a thumb on +15 never lands on −15.
-  const label = timer.kind === 'switch' ? t('Switch sides') : timer.paused ? t('Paused') : t('Rest')
+  // A rest adapted to the set (lib/rest-adapt.js) says so in the clock's label ("Heavy set", "Light set", the width of the 375 px bar allows no more); a normal rest is plain "Rest".
+  const label = timer.kind === 'switch' ? t('Switch sides') : timer.paused ? t('Paused') : timer.adapt === 'heavy' ? t('Heavy set') : timer.adapt === 'light' ? t('Light set') : t('Rest')
   // A rest before a hold that starts by itself says which one, and offers Stop auto under the
   // rest's own buttons (which keep their places: Pause, +15 s and Skip are the chain's for a rest).
   const autoNext = !timer.ready && timer.autoNext

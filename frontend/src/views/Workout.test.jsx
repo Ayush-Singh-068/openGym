@@ -3332,7 +3332,7 @@ describe('per-side effort completion', () => {
         { w: 20, r: 16, done: false, sides: { L: side(), R: side() } },
         { w: 20, r: 16, done: false, sides: { L: side(), R: side() } },
       ],
-    })], 0, { effort: scale })
+    })], 0, { effort: scale, restAdapt: false })
     const cells = container.querySelectorAll('.side-rows .effcell.is-empty')
     await act(async () => { cells[0].dispatchEvent(new dom.Event('click', { bubbles: true })) })
     const leftPick = mocks.effortPickerSheet.mock.calls.at(-1)[2]

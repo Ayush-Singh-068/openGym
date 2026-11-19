@@ -57,6 +57,14 @@ export function isCompoundEx(idOrCfg) {
   return COMPOUND.test(n) && !ISOLATION.test(n)
 }
 
+/** Whether an exercise is a single-joint "small muscle" lift (curls, raises, extensions), by its name; false for anything the catalogue does not know. */
+export function isIsolationEx(idOrCfg) {
+  const ex = exerciseOf(typeof idOrCfg === 'string' ? idOrCfg : idOrCfg?.id)
+  if (!ex) return false
+  if (SOFT_CATS.has(ex.cat) || ex.bp === 'cardio') return false
+  return ISOLATION.test(String(ex.n || ''))
+}
+
 const clampInt = (v, lo, hi) => {
   const n = Math.round(Number(v))
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null

@@ -1,5 +1,15 @@
 // Hindi UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  // --- Phase 1b step 2: effort aim, back to the suggestion, adaptive rest ---
+  "Aim: a couple of reps to spare": "Aim: a couple of reps to spare",
+  "Aim: one or two reps to spare": "Aim: one or two reps to spare",
+  "Aim: close to the limit, one rep to spare": "Aim: close to the limit, one rep to spare",
+  "Aim: keep it easy": "Aim: keep it easy",
+  "Back to the suggested weight: {0}": "Back to the suggested weight: {0}",
+  "Heavy set": "Heavy set",
+  "Light set": "Light set",
+  "Adjust rest to the set": "Adjust rest to the set",
+  "Heavy sets rest longer, light sets shorter. A rest you set yourself is never changed.": "Heavy sets rest longer, light sets shorter. A rest you set yourself is never changed.",
   // --- Bug fix A: the day’s answers ---
   "Today’s weight": "Today’s weight",
   "Slide or tap to set your weight. Asked once a day, at your first workout.": "Slide or tap to set your weight. Asked once a day, at your first workout.",

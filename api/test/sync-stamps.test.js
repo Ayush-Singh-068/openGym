@@ -24,6 +24,18 @@ const stored = () => ({
   deleted: { workouts: { w9: NOW - 4000 } }, edited: { restSec: NOW - 4000 },
 });
 
+test('the adjust-rest setting is stamped like the Rest timer for a writer that does not stamp', () => {
+  const cur = stored();
+  cur.restAdapt = true;
+  const next = clone(cur);
+  delete next.deleted; delete next.edited; delete next._rev
+  next.restAdapt = false
+  stampPut(cur, next, { overRead: true, stamped: false, now: NOW });
+  assert.equal(next.restAdapt, false);
+  assert.ok(next.edited.restAdapt >= NOW);
+  assert.equal(next.edited.restSec, NOW - 4000);
+});
+
 test('an older app\'s push over the current revision keeps the records and gets its changes stamped', () => {
   const cur = stored();
   const next = clone(cur);

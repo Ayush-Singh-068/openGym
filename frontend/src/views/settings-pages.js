@@ -162,6 +162,7 @@ export const SEARCH = [
   { page: 'workout', title: 'Screen-awake notice', icon: 'phoneScreen', tint: 'var(--yellow)', kw: 'gym mode screen on awake lock sleep low power mode warning notice' },
   { page: 'workout', title: 'Automatic warm-ups', icon: 'sunrise', tint: 'var(--orange)', mod: 'plates', kw: 'warm-up warmup ramp automatic generator compounds' },
   { page: 'workout', title: 'Rest timer', icon: 'timer', tint: 'var(--orange)', kw: 'rest pause break seconds minutes timer countdown' },
+  { page: 'workout', title: 'Adjust rest to the set', icon: 'slider', tint: 'var(--orange)', kw: 'rest adapt adaptive automatic heavy light set longer shorter timer' },
   { page: 'workout', title: 'Rest-pause rest', icon: 'bolt', tint: 'var(--orange)', kw: 'burst cluster rest pause' },
   { page: 'workout', title: 'Rest between warm-ups', icon: 'timer', tint: 'var(--yellow)', kw: 'warm-up warmup ramp rest break timer shorter no rest' },
   { page: 'workout', title: 'Rest before the next exercise', icon: 'timer', tint: 'var(--teal)', kw: 'rest break next exercise transition machine walk switch change longer between exercises timer' },

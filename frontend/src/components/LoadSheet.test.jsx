@@ -159,3 +159,39 @@ describe('what was picked is what the sheet says', () => {
     expect(host.querySelector('h3').textContent).not.toBe('Sled weight')
   })
 })
+
+describe('the Aim and the way back to the suggested weight', () => {
+  it('shows the Aim between the plates and the reason, and nothing when there is none', () => {
+    const model = loadModel(S(), { id: BENCH }, 100)
+    const host = mount(<LoadSheet {...props(model, { why: 'Every set hit 8. Same weight, 9 reps this time.', aim: 'Aim: a couple of reps to spare' })} />)
+    const text = host.textContent
+    expect(text).toContain('Aim: a couple of reps to spare')
+    expect(text.indexOf('Each side: 25 + 15')).toBeLessThan(text.indexOf('Aim:'))
+    expect(text.indexOf('Aim:')).toBeLessThan(text.indexOf('Why this weight'))
+    const none = mount(<LoadSheet {...props(model)} />)
+    expect(none.textContent).not.toContain('Aim')
+  })
+
+  it('shows one row for the suggested weight; a tap applies it and closes the sheet', () => {
+    const onApply = vi.fn()
+    const p = props(loadModel(S(), { id: BENCH }, 100), { back: { label: '105 kg', onApply } })
+    const host = mount(<LoadSheet {...p} />)
+    const row = rowWith(host, 'Back to the suggested weight: 105 kg')
+    expect(row).toBeTruthy()
+    expect(host.querySelectorAll('button.lrow')).toHaveLength(2)
+    act(() => row.click())
+    expect(onApply).toHaveBeenCalledTimes(1)
+    expect(p.close).toHaveBeenCalled()
+  })
+
+  it('has no such row without one, and the sled question never shows it', () => {
+    const host = mount(<LoadSheet {...props(loadModel(S(), { id: BENCH }, 100))} />)
+    expect(rowWith(host, 'Back to the suggested')).toBeUndefined()
+    const sled = loadModel(S(), { id: LEG_PRESS }, 130)
+    expect(sled.needsBase).toBe(true)
+    const ask = mount(<LoadSheet {...props(sled, { aim: 'Aim: keep it easy', back: { label: '140 kg', onApply: vi.fn() } })} />)
+    expect(ask.querySelector('h3').textContent).toBe('Sled weight')
+    expect(ask.textContent).not.toContain('Aim:')
+    expect(rowWith(ask, 'Back to the suggested')).toBeUndefined()
+  })
+})

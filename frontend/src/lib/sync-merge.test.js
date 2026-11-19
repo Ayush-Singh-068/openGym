@@ -996,3 +996,26 @@ describe('body measurements across devices (#82)', () => {
     expect(next.measurements[0].t).toBe(1000)
   })
 })
+
+describe('the adjust-rest setting (restAdapt) is stamped like the Rest timer', () => {
+  it('a change is stamped in edited, and the later change on either device wins', () => {
+    const t0 = base({ _ts: 1000, restAdapt: true })
+    const phone = stampEdits(t0, { ...clone(t0), _ts: 2000, restAdapt: false }, 2000)
+    expect(phone.edited.restAdapt).toBe(2000)
+    const desktop = stampEdits(t0, { ...clone(t0), _ts: 3000, restSec: 75 }, 3000)
+    expect(desktop.edited.restSec).toBe(3000)
+    expect(desktop.edited.restAdapt).toBeUndefined()
+    const m = mergeStates(desktop, phone)
+    expect(m.restAdapt).toBe(false)
+    expect(m.restSec).toBe(75)
+    const m2 = mergeStates(phone, desktop)
+    expect(m2.restAdapt).toBe(false)
+    expect(m2.restSec).toBe(75)
+  })
+  it('an older device that never had the setting does not turn it back on', () => {
+    const t0 = base({ _ts: 1000, restAdapt: true })
+    const phone = stampEdits(t0, { ...clone(t0), _ts: 2000, restAdapt: false }, 2000)
+    const old = base({ _ts: 3000, restSec: 90 })
+    expect(mergeStates(old, phone).restAdapt).toBe(false)
+  })
+})

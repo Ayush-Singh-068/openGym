@@ -657,6 +657,11 @@ export default function Settings({ page = null, find = null, via = null, entryKe
       </Section>}
       <Section title={t('Rest')} footer={t('Each exercise can have its own rest too. Set it in the exercise settings of a routine.')}>
         {restRow}
+        {/* Heavy sets of big lifts rest longer and light sets shorter than the Rest timer (lib/rest-adapt.js); on unless switched off. */}
+        {S.restSec > 0 && <Row icon="slider" iconTint="var(--orange)" title={t('Adjust rest to the set')}
+          subtitle={t('Heavy sets rest longer, light sets shorter. A rest you set yourself is never changed.')}>
+          <Switch aria-label={t('Adjust rest to the set')} checked={S.restAdapt !== false} onChange={v => update(s => { s.restAdapt = v })} />
+        </Row>}
         {warmupRestRow}
         {nextRestRow}
         {restPauseRow}

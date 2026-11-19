@@ -54,7 +54,9 @@ import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
-import { rpeAs } from '../lib/programmes.js'
+import { restPlan } from '../lib/rest-adapt.js'
+import { aimLine } from '../lib/effort-aim.js'
+import { backToPlan, withSuggestedWeight } from '../lib/suggested-weight.js'
 import { buildPlannedEntry, buildSessionEntry, plannedConfigOf, builtOutOfProgression } from '../lib/session-start.js'
 import { routineChangesFromEntry, updateRoutineFromEntry, routineSlotIndex, ownWarmupsChange, keepOwnWarmups, replaceSlotExercise } from '../lib/routines.js'
 import { ownRowsLine } from '../lib/warmup-ramp.js'
@@ -744,7 +746,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   const setRestDefault = i => {
     const all = S.active?.entries || []
     const unit = supersetUnits(all).find(u => u.includes(entryIdx)) || [entryIdx]
-    const work = restSecFor(all, unit, S.restSec, { idx: entryIdx, sec: pyramidRestFor(entry.target, entry.sets, i) })
+    const work = restPlan(S, all, unit, entryIdx, i, { idx: entryIdx, sec: pyramidRestFor(entry.target, entry.sets, i) }).sec
     return warmupRestSecFor(entry, i, work, S.warmupRestSec)
   }
   const openSetRest = i => {
@@ -1022,11 +1024,21 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
   const whyInSheet = !!loadInfo?.text && !loadInfo.needsBase && !!guidance && plan?.kind !== 'first'
   // The sled weight already known for this exercise, so it is not asked for again.
   const sledBase = loadInfo ? sledBaseFor(S, cfg) : 0
+  // The Aim (lib/effort-aim.js) and the way back to the suggested weight (lib/suggested-weight.js) live in the
+  // "About this weight" sheet only, so the card itself stays as it is.
+  const aimReps = Number(entry.sets[curRow]?.r) || Number(entry.target?.reps) || 0
+  const aim = loadInfo?.text ? aimLine({ id: entry.id, reps: aimReps, plan, deload: entry.deload === true }) : ''
+  const back = !editing && loadInfo?.text && !loadInfo.needsBase ? backToPlan(entry) : null
   // Tapping it opens "About this weight" (or, for a sled of unknown weight, the one question).
   const openLoadSheet = () => {
     const unit = S.unit
     const why = whyInSheet ? t(...guidance.why) : ''
-    useUI.getState().openSheet(close => <LoadSheet model={loadInfo} name={exerciseNameText(ex)} step={loadStep} why={why} sledBase={sledBase} close={close}
+    useUI.getState().openSheet(close => <LoadSheet model={loadInfo} name={exerciseNameText(ex)} step={loadStep} why={why} aim={aim} sledBase={sledBase} close={close}
+      back={back ? { label: fmtWeight(back.w, S.unit), onApply: () => update(s => inEntryUnit(s, entryIdx, e => {
+        e.sets = withSuggestedWeight(e.sets, back.w, back.rows)
+        const first = e.sets.findIndex(x => !isWarmupRow(x))
+        if (back.rows.includes(first)) rerampOpen(useStore.getState().S, e, first)
+      }), true) } : null}
       onSaveBase={b => update(s => { s.loadSetup = withLoadSetup(s.loadSetup, entry.id, 'sled', { base: b, unit }) })}
       onPickKind={k => update(s => { s.loadSetup = withLoadSetup(s.loadSetup, entry.id, k, { unit }) })} />)
   }
@@ -1113,7 +1125,7 @@ function ExerciseBlock({ entryIdx, compact, listed, dense, lean, editing, onTogg
     {(!calm || !whyInSheet) && guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={inEx(t('Open exercise settings'))} onClick={onProgressionSettings}>
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' || plan.prog?.deload ? 'arrowDown' : plan.kind === 'programme' ? 'calendar' : 'lightbulb'} />
-      <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}{guidance.prog?.rpe != null && <> · {t('aim for {0}', (r => `${r.k} ${fmtNum(r.v)}`)(rpeAs(guidance.prog.rpe, effortOf(S))))}</>}</span>
+      <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}{guidance.prog?.rpe != null && <> · {aimLine({ id: entry.id, reps: aimReps, plan, deload: entry.deload === true })}</>}</span>
     </button>}
     {/* The skill ladder (lib/ladders.js): the next rung, and one tap to put it in the routine. */}
     {plan?.kind === 'ladder' && plan.next && EXIDX[plan.next] && <LadderNext entry={entry} next={plan.next} />}
@@ -2425,7 +2437,9 @@ function ActiveWorkout() {
   }
   const toggle = (idx, i, side, { quiet = false, noRest = false, onFocusProgress } = {}) => {
     // Complete as planned ticks a run of sets with noRest, so the one rest comes after the last of them.
-    const begin = noRest ? () => {} : startRest
+    // A rest adapted to the set (lib/rest-adapt.js restPlan) names it on the rest bar: set below, read when a rest starts.
+    let adaptTag = null
+    const begin = noRest ? () => {} : (sec, forIdx, o) => startRest(sec, forIdx, adaptTag ? { ...o, adapt: adaptTag } : o)
     // Ticking a set ends the typing in that row: drop the keyboard before the rest timer, the
     // effort sheet or the next exercise moves in. WebKit keeps the input focused across the
     // button tap, and a focused input with its keyboard gone is what leaves the tab bar
@@ -2501,17 +2515,20 @@ function ActiveWorkout() {
       // Resolved once here so every branch below times the same break.
       // A pyramid set may carry its own rest, standing in for the exercise's (pyramidRestFor).
       const setRest = { idx, sec: pyramidRestFor(fresh.entries[idx].target, fresh.entries[idx].sets, i) }
-      const restSec = restSecFor(fresh.entries, freshUnit || [idx], S.restSec, setRest)
+      const rp = restPlan(S, fresh.entries, freshUnit || [idx], idx, i, setRest)
+      const restSec = rp.sec
       // A warm-up ramp set may rest shorter than a work set (the exercise's warmupRestSec, else the
       // profile's); the last ramp set, into the first work set, still gets the working rest.
       // A set given its own rest in its menu (#609) keeps it, whatever the exercise would rest.
       const ownRest = ownSetRest(fresh.entries[idx].sets[setSpanAt(fresh.entries[idx].sets, i)[0]])
       let restAfter = ownRest ?? warmupRestSecFor(fresh.entries[idx], i, restSec, useStore.getState().S.warmupRestSec)
+      // The bar names the adaptation only while the rest is the adapted one: a set's own rest or a rest into the next exercise is not.
+      adaptTag = ownRest == null ? rp.tag : null
       // The exercise is done and another follows: the rest into it may be a transition of its
       // own (D#487), the exercise's or the profile's. A set given its own rest still keeps that.
       if (ownRest == null && freshUnitDone && nextUnit) {
         const into = transitionRestFor(fresh.entries, freshUnit || [idx], useStore.getState().S.nextRestSec)
-        if (into !== null) restAfter = into
+        if (into !== null) { restAfter = into; adaptTag = null }
       }
 
       // A re-check of finished work must not navigate or reopen a sheet, but it may still owe

@@ -14,7 +14,8 @@
 // rest is as far along as it would have been.
 import { nextOpenSet } from './workout-keys.js'
 import { isWarmupRow } from './workout-model.js'
-import { ownSetRest, restSecFor, sideRestFor, warmupRestSecFor } from './supersetFlow.js'
+import { ownSetRest, sideRestFor, warmupRestSecFor } from './supersetFlow.js'
+import { restPlan } from './rest-adapt.js'
 import { pyramidRestFor } from './pyramid.js'
 import { supersetUnits } from './history.js'
 
@@ -114,7 +115,7 @@ export function shouldWait ({ sheets = 0, activeTag = '', editable = false } = {
 const restAfterRow = (S, entries, idx, i) => {
   const e = entries[idx]
   const rows = e.sets
-  const rest = restSecFor(entries, [idx], S.restSec, { idx, sec: pyramidRestFor(e.target, rows, i) })
+  const rest = restPlan(S, entries, [idx], idx, i, { idx, sec: pyramidRestFor(e.target, rows, i) }).sec
   const own = ownSetRest(rows[i])
   return own ?? warmupRestSecFor(e, i, rest, S.warmupRestSec)
 }

@@ -23,7 +23,9 @@ const KIND_TEXT = {
 // `model` is a snapshot from the moment the sheet opened: what is picked in here is kept in `kind`.
 // `sledBase` is the sled weight already known for this exercise (kept when another way of counting
 // was picked), 0 when it is not: a known one is not asked for again.
-export default function LoadSheet({ model, name, step, why, sledBase = 0, onSaveBase, onPickKind, close }) {
+// `aim` is the Aim line (lib/effort-aim.js), '' for none; `back` is { label, onApply } for the row "Back to the
+// suggested weight" (lib/suggested-weight.js), null for none: one tap applies it and closes the sheet.
+export default function LoadSheet({ model, name, step, why, aim = '', back = null, sledBase = 0, onSaveBase, onPickKind, close }) {
   const [view, setView] = useState(model.needsBase ? 'sled' : 'about')
   const [kind, setKind] = useState(model.kind)
   const known = model.kind === 'sled' && model.base > 0 ? model.base : sledBase > 0 ? sledBase : 0
@@ -61,7 +63,11 @@ export default function LoadSheet({ model, name, step, why, sledBase = 0, onSave
     <div className="muted small" style={{ marginBottom: 12 }}>{name}</div>
     <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.4, marginBottom: 8 }}>{model.text}</div>
     {model.plates?.length > 0 && <div className="small dim" style={{ marginBottom: 8 }}>{t('Each side: {0}', model.plates.map(fmtPlate).join(' + '))}</div>}
+    {aim && <div className="small dim" style={{ marginBottom: 8, lineHeight: 1.4 }}>{aim}</div>}
     {why && <div className="small dim" style={{ marginBottom: 8, lineHeight: 1.4 }}>{t('Why this weight: {0}', why)}</div>}
+    {back && <div className="list menu-list" style={{ marginTop: 14 }}>
+      <Row title={t('Back to the suggested weight: {0}', back.label)} onClick={() => { back.onApply(); close() }} />
+    </div>}
     {model.kind === 'sled' && model.base > 0 && <div className="list menu-list" style={{ marginTop: 14 }}>
       <Row title={t('Sled weight')} value={fmtPlate(model.base) + ' ' + unit} accessory="chevron" onClick={() => setView('sled')} />
     </div>}

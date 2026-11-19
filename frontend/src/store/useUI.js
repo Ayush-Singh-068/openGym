@@ -407,7 +407,8 @@ export const useUI = create((set, get) => ({
 
   // `rest`: what kind of rest this is (#165: 'warmup' | 'work' | 'superset' | 'exercise', from
   // lib/supersetFlow.js restKindAfter), kept on the timer as `rk` for the sound at its end.
-  startRest(sec, forIdx, { kind, forSet, rest, nextKind, next: nextText } = {}) {
+  // `adapt`: 'heavy' or 'light' when the rest was adapted to the set (lib/rest-adapt.js restPlan); the bar names it.
+  startRest(sec, forIdx, { kind, forSet, rest, nextKind, next: nextText, adapt } = {}) {
     // `next`: the line the rest bar shows under the clock in Gym mode ("Next: set 3 · 80 kg × 8",
     // lib/gym-mode.js nextUpFor), kept on the timer as `next`.
     // `nextKind`: what follows this rest ('set' | 'exercise' | 'last' | 'superset', lib/cue-sounds.js
@@ -435,7 +436,7 @@ export const useUI = create((set, get) => ({
     // `autoNext`: the hold that counts in once this rest is over (lib/auto-holds.js), for the bar.
     const next = get().countIn ? null : autoPeek()
     get().stopCountIn()
-    set({ timer: { left: sec, total: sec, endsAt, forIdx, ...(forSet != null ? { forSet } : {}), ...(kind === 'switch' ? { kind } : {}), ...(kind !== 'switch' && REST_KINDS.includes(rest) ? { rk: rest } : {}), ...(kind !== 'switch' && NEXT_KINDS.includes(nextKind) ? { nextKind } : {}), ...(kind !== 'switch' && typeof nextText === 'string' && nextText ? { next: nextText } : {}), ...(next ? { autoNext: next.label } : {}) } })
+    set({ timer: { left: sec, total: sec, endsAt, forIdx, ...(forSet != null ? { forSet } : {}), ...(kind === 'switch' ? { kind } : {}), ...(kind !== 'switch' && REST_KINDS.includes(rest) ? { rk: rest } : {}), ...(kind !== 'switch' && NEXT_KINDS.includes(nextKind) ? { nextKind } : {}), ...(kind !== 'switch' && typeof nextText === 'string' && nextText ? { next: nextText } : {}), ...(kind !== 'switch' && (adapt === 'heavy' || adapt === 'light') ? { adapt } : {}), ...(next ? { autoNext: next.label } : {}) } })
     bookRestEnd(endsAt, sec, kind)
     runRest(set, get)
     // Spoken cues: the next set, said as the rest begins (lib/spoken-cues.js).
@@ -848,7 +849,7 @@ const saveRest = tm => {
   if (!ss) return
   try {
     if (!tm || tm.ready) { savedRestKey = null; ss.removeItem(REST_KEY); return }
-    const v = { endsAt: tm.endsAt, total: tm.total, forIdx: tm.forIdx ?? null, forSet: tm.forSet ?? null, kind: tm.kind || null, ...(tm.rk ? { rk: tm.rk } : {}), ...(tm.nextKind ? { nextKind: tm.nextKind } : {}), ...(tm.next ? { next: tm.next } : {}), paused: !!tm.paused, left: tm.left }
+    const v = { endsAt: tm.endsAt, total: tm.total, forIdx: tm.forIdx ?? null, forSet: tm.forSet ?? null, kind: tm.kind || null, ...(tm.rk ? { rk: tm.rk } : {}), ...(tm.adapt ? { adapt: tm.adapt } : {}), ...(tm.nextKind ? { nextKind: tm.nextKind } : {}), ...(tm.next ? { next: tm.next } : {}), paused: !!tm.paused, left: tm.left }
     const key = JSON.stringify({ ...v, left: v.paused ? v.left : null })
     if (key === savedRestKey && ss.getItem(REST_KEY) !== null) return
     ss.setItem(REST_KEY, JSON.stringify(v))
@@ -863,7 +864,7 @@ export function restoreRest(now = Date.now()) {
   const total = Math.round(Number(saved.total))
   const ok = useStore.getState().S?.active && total > 0 && (saved.paused ? saved.left > 0 : saved.endsAt > now)
   if (!ok) { try { ss.removeItem(REST_KEY) } catch { /* nothing to drop */ } return false }
-  const base = { total, forIdx: saved.forIdx ?? undefined, ...(saved.forSet != null ? { forSet: saved.forSet } : {}), ...(saved.kind === 'switch' ? { kind: 'switch' } : {}), ...(REST_KINDS.includes(saved.rk) ? { rk: saved.rk } : {}), ...(NEXT_KINDS.includes(saved.nextKind) ? { nextKind: saved.nextKind } : {}), ...(typeof saved.next === 'string' && saved.next ? { next: saved.next } : {}) }
+  const base = { total, forIdx: saved.forIdx ?? undefined, ...(saved.forSet != null ? { forSet: saved.forSet } : {}), ...(saved.kind === 'switch' ? { kind: 'switch' } : {}), ...(REST_KINDS.includes(saved.rk) ? { rk: saved.rk } : {}), ...(saved.adapt === 'heavy' || saved.adapt === 'light' ? { adapt: saved.adapt } : {}), ...(NEXT_KINDS.includes(saved.nextKind) ? { nextKind: saved.nextKind } : {}), ...(typeof saved.next === 'string' && saved.next ? { next: saved.next } : {}) }
   if (saved.paused) {
     useUI.setState({ timer: { ...base, left: Math.round(saved.left), endsAt: saved.endsAt, paused: true } })
     if (MOBILE) holdRestAlert(Math.round(saved.left), total)
