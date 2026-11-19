@@ -1314,7 +1314,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
         <PinSettings />
       </Section>}
       {LOCAL_BUILD && <Section title={t('Automatic copies in this browser')}
-        footer={t('Kept for 14 days. They are lost if you clear this site’s data or remove the app, so export a backup file now and then.')}>
+        footer={t('The newest copy is on top, then one for each day, kept for 14 days. They are lost if you clear this site’s data or remove the app, so export a backup file now and then.')}>
         <AutoSavedLine />
         <DesktopFolderBackup />
         <LocalSnapshots />

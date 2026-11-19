@@ -32,8 +32,14 @@ export const dayKey = (d = new Date()) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-/** Which snapshot keys to delete so only the newest `keep` remain. Keys sort by date. */
-export const pruneKeys = (keys, keep = SNAP_KEEP) => [...keys].sort().slice(0, Math.max(0, keys.length - keep))
+/** Which snapshot keys to delete so only the newest `keep` remain. Keys sort by date. The day
+ *  copies and the "before a restore" copies are counted apart, so a few restores in a day never
+ *  push the older day copies out. */
+export const pruneKeys = (keys, keep = SNAP_KEEP) => {
+  const isDay = k => /^\d{4}-\d{2}-\d{2}$/.test(k)
+  const oldest = list => [...list].sort().slice(0, Math.max(0, list.length - keep))
+  return [...oldest(keys.filter(isDay)), ...oldest(keys.filter(k => !isDay(k)))]
+}
 
 /** Whether a copy of `now` characters is a drastic shrink of one of `before`. */
 export const shrank = (before, now) => !!before && before > 2000 && now < before / 2
@@ -141,11 +147,33 @@ export async function listSnapshots() {
   } catch { return [] }
 }
 
-/** One snapshot's state JSON, or null. */
+// The row that stands for the latest automatic copy (the one "Auto-saved 15:54" is about) in the
+// list of copies: it is not a day snapshot, so it has this id of its own.
+export const LATEST_ID = 'latest'
+
+/** The latest automatic copy as a list row, { id: LATEST_ID, ts, size }, or null when there is none. */
+export async function latestCopy() {
+  try {
+    const db = await open()
+    if (!db) return null
+    const store = db.transaction(STATE).objectStore(STATE)
+    const meta = await req(store.get('latest-meta'))
+    if (meta && Number(meta.savedAt) > 0) return { id: LATEST_ID, ts: Number(meta.savedAt), size: Number(meta.size) || 0 }
+    const full = await req(db.transaction(STATE).objectStore(STATE).get('latest'))
+    if (!full || typeof full.json !== 'string') return null
+    return { id: LATEST_ID, ts: Number(full.savedAt) || Number(full.ts) || 0, size: full.json.length }
+  } catch { return null }
+}
+
+/** One snapshot's state JSON, or null. LATEST_ID reads the latest automatic copy. */
 export async function readSnapshot(id) {
   try {
     const db = await open()
     if (!db) return null
+    if (id === LATEST_ID) {
+      const latest = await req(db.transaction(STATE).objectStore(STATE).get('latest'))
+      return latest && typeof latest.json === 'string' ? latest.json : null
+    }
     const v = await req(db.transaction(SNAPS).objectStore(SNAPS).get(id))
     if (!v) return null
     if (v.gz) return await unpack(v.gz)
@@ -241,10 +269,11 @@ function agoText({ unit, n }) {
   catch { return new Date(Date.now() - value * 1000).toLocaleString(dateLocale()) }
 }
 
-/** 'YYYY-MM-DD-HHMM' of a date in the device's own clock: the stamp on a backup file's name. */
+/** 'YYYY-MM-DD-HHMMSS' of a date in the device's own clock: the stamp on a backup file's name. The
+ *  seconds keep two exports in the same minute from getting the same name. */
 export function backupStamp(d = new Date()) {
   const p = n => String(n).padStart(2, '0')
-  return `${dayKey(d)}-${p(d.getHours())}${p(d.getMinutes())}`
+  return `${dayKey(d)}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
-/** 'opengym-backup-2026-09-16-1405.json' (ext 'json' or 'zip'). */
+/** 'opengym-backup-2026-09-16-140512.json' (ext 'json' or 'zip'). */
 export const backupFileName = (ext = 'json', d = new Date()) => `opengym-backup-${backupStamp(d)}.${ext}`

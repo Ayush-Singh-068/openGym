@@ -237,13 +237,16 @@ export function deleteEditedWorkout(state) {
 }
 
 /**
- * What Save would change in the workout the editor is open on: the done sets, exercise by
- * exercise, compared with the saved record. Pure and read-only. Returns [] when only the note,
- * name or body weight changed (or nothing).
+ * What Save would change in the workout the editor is open on: every set, exercise by exercise,
+ * compared with the saved record. Pure and read-only. Returns [] when only the note, name or body
+ * weight changed (or nothing).
  *   { kind: 'exercise-added' | 'exercise-removed', id }
- *   { kind: 'set-changed' | 'set-added' | 'set-removed', id, set: 1-based number among that exercise's work sets,
- *     before: { w, r, sec } | null, after: { w, r, sec } | null }
- * Warm-up rows are ignored (they never feed progression).
+ *   { kind: 'set-changed' | 'set-added' | 'set-removed' | 'set-unticked' | 'set-ticked', id,
+ *     set: 1-based number among that exercise's work sets (or among its warm-ups when `warmup` is true),
+ *     warmup?: true, before: { w, r, sec } | null, after: { w, r, sec } | null }
+ * Warm-ups are listed too: they are part of the record, and a Save that quietly changed one is how
+ * a warm-up used to go missing from an edited workout. A set that is no longer ticked is
+ * 'set-unticked' (it stays in the record as a set not done); one the editor took out is 'set-removed'.
  */
 export function diffWorkoutEdit(state) {
   const active = state?.active
@@ -252,8 +255,16 @@ export function diffWorkoutEdit(state) {
   const current = list(state.workouts).find(w => keyOf(w) === key)
   if (!current) return []
   const after = draftRecord(active, current, key)
-  const rowsOf = e => list(e?.sets).filter(s => s && s.done && !isWarmupRow(s))
-    .map(s => ({ w: Number(s.w) || 0, r: Number(s.r) || 0, sec: Number(s.sec) || 0 }))
+  // Every row of an exercise, warm-ups and work sets apart, each with whether it is ticked.
+  const rowsOf = e => {
+    const out = { work: [], warm: [] }
+    for (const s of list(e?.sets)) {
+      if (!s) continue
+      out[isWarmupRow(s) ? 'warm' : 'work'].push({ w: Number(s.w) || 0, r: Number(s.r) || 0, sec: Number(s.sec) || 0, done: hasCompletedWork(s) })
+    }
+    return out
+  }
+  const view = row => (row ? { w: row.w, r: row.r, sec: row.sec } : null)
   // Occurrences of the same exercise pair up by order: the 1st with the 1st, the 2nd with the 2nd.
   const group = rec => {
     const out = new Map()
@@ -270,12 +281,18 @@ export function diffWorkoutEdit(state) {
     if (!b.length) { diff.push({ kind: 'exercise-added', id }); continue }
     if (!a.length) { diff.push({ kind: 'exercise-removed', id }); continue }
     for (let o = 0; o < Math.max(a.length, b.length); o++) {
-      const bs = b[o] || [], as = a[o] || []
-      for (let i = 0; i < Math.max(bs.length, as.length); i++) {
-        const x = bs[i] || null, y = as[i] || null
-        if (x && y) { if (x.w !== y.w || x.r !== y.r || x.sec !== y.sec) diff.push({ kind: 'set-changed', id, set: i + 1, before: x, after: y }) }
-        else if (y) diff.push({ kind: 'set-added', id, set: i + 1, before: null, after: y })
-        else if (x) diff.push({ kind: 'set-removed', id, set: i + 1, before: x, after: null })
+      for (const part of ['work', 'warm']) {
+        const bs = b[o]?.[part] || [], as = a[o]?.[part] || []
+        const tag = part === 'warm' ? { warmup: true } : {}
+        for (let i = 0; i < Math.max(bs.length, as.length); i++) {
+          const x = bs[i] || null, y = as[i] || null
+          const item = (kind, was, now) => diff.push({ kind, id, set: i + 1, ...tag, before: view(was), after: view(now) })
+          if (x && y) {
+            if (x.w !== y.w || x.r !== y.r || x.sec !== y.sec) item('set-changed', x, y)
+            if (x.done !== y.done) item(y.done ? 'set-ticked' : 'set-unticked', x, y)
+          } else if (y) item('set-added', null, y)
+          else if (x) item('set-removed', x, null)
+        }
       }
     }
   }

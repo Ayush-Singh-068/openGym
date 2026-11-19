@@ -64,6 +64,7 @@ import SyncBanner from './components/SyncBanner.jsx'
 import UpdateBar from './components/UpdateBar.jsx'
 import BackupReminder from './components/BackupReminder.jsx'
 import PinLock from './components/PinLock.jsx'
+import { useLocked } from './lib/lock-state.js'
 import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import { SeasonalLayer } from './components/Seasonal.jsx'
@@ -158,6 +159,8 @@ function Shell() {
   const loc = useLocation()
   const navType = useNavigationType()
   const { S, user, ready } = useStore()
+  // While the PIN lock shows, the page holds the lock screen and nothing else (see the return below).
+  const locked = useLocked()
   // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
   // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])
@@ -393,6 +396,9 @@ function Shell() {
   useTourOffer(setupDone, loadTour)
   // The boot screen in index.html covers the start; it goes once there is something to show.
   useEffect(() => { if (ready || authed) hideBoot() }, [ready, authed])
+  // Locked: only the lock screen is rendered, so no workout, routine or button of the app is in the
+  // page behind it. Every hook above has run, so unlocking brings the app straight back.
+  if (locked) return <PinLock />
   if (!ready && !authed) return (
     <div id="app">
       <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center' }}>

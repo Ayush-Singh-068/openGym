@@ -410,24 +410,26 @@ describe('what Save would change (diffWorkoutEdit)', () => {
     expect(diffWorkoutEdit(st)).toEqual([])
   })
 
-  it('an undone set counts as removed', () => {
+  it('an undone set is set-unticked: it stays in the record as a set not done', () => {
     const st = two()
     st.workouts[0].entries[0].sets.push({ w: 42.5, r: 4, done: true })
     editCompletedSession(st, 'workout')
     st.active.entries[0].sets[1].done = false
     expect(diffWorkoutEdit(st)).toEqual([{
-      kind: 'set-removed', id: '0025', set: 2,
-      before: { w: 42.5, r: 4, sec: 0 }, after: null,
+      kind: 'set-unticked', id: '0025', set: 2,
+      before: { w: 42.5, r: 4, sec: 0 }, after: { w: 42.5, r: 4, sec: 0 },
     }])
   })
 
-  it('a warm-up row changed is ignored', () => {
-    const st = open()
-    st.active.entries[0].sets.unshift({ w: 20, r: 10, done: true, warmup: true })
-    const saved = open()
-    saved.active.entries[0].sets.unshift({ w: 10, r: 10, done: true, warmup: true })
-    expect(diffWorkoutEdit(st)).toEqual([])
-    expect(diffWorkoutEdit(saved)).toEqual([])
+  it('a warm-up row added is listed as a warm-up, whichever way the row says it is one', () => {
+    for (const row of [{ w: 20, r: 10, done: true, warmup: true }, { w: 10, r: 10, done: true, phase: 'warmup' }]) {
+      const st = open()
+      st.active.entries[0].sets.unshift(row)
+      expect(diffWorkoutEdit(st)).toEqual([{
+        kind: 'set-added', id: '0025', set: 1, warmup: true,
+        before: null, after: { w: row.w, r: 10, sec: 0 },
+      }])
+    }
   })
 
   it('does not change the state', () => {

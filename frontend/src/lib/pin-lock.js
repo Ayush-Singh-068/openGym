@@ -110,3 +110,62 @@ export async function verifyPin(pin, now = Date.now()) {
     return { ok: false, wait }
   } finally { checking = false }
 }
+
+/** What a PIN field shows: one dot per digit. The field is a plain text field, not a password
+ *  field: a password field makes browsers offer to save the PIN in their password manager, which
+ *  would then offer it to whoever holds the phone. Showing the dots ourselves works the same in
+ *  every browser (the CSS that masks a text field does not). */
+export const MASK = '•'
+export const maskPin = pin => MASK.repeat(String(pin ?? '').length)
+
+/** The PIN after a change in a field that was showing maskPin(prev). The dots left in the field
+ *  are the digits kept, what is not a dot is what was typed or pasted: so typing adds digits at
+ *  the end, deleting takes digits off the end, and a pasted "1234 5678" is 12345678. */
+export function pinFromField(prev, shown) {
+  const text = String(shown ?? '')
+  const kept = text.split(MASK).length - 1
+  return normalizePin(String(prev ?? '').slice(0, kept) + normalizePin(text.split(MASK).join('')))
+}
+
+export const LOCK_CHANNEL = 'opengym-lock'
+export const DEVICE_DBS = ['opengym-local', 'opengym-media']
+
+function deleteDb(idb, name, waitMs) {
+  return new Promise(resolve => {
+    let timer = null
+    const end = ok => { clearTimeout(timer); resolve(ok) }
+    try {
+      const request = idb.deleteDatabase(name)
+      request.onsuccess = () => end(true)
+      request.onerror = () => end(false)
+      // A delete that is blocked waits for other tabs to close their connections: not for ever.
+      timer = setTimeout(() => end(false), waitMs)
+    } catch { end(false) }
+  })
+}
+
+/** Wipes this device's data and, last of all, the lock: the way out of a forgotten PIN. Other tabs
+ *  are told first and reload, so none of them keeps the profile in memory and writes it back. The
+ *  IndexedDB copies go before anything else and must really be gone: if one cannot be deleted the
+ *  lock stays (false), because a copy that survives would come back at the next start with no
+ *  lock on it. Then every other localStorage key, then the PIN key, then the page reloads (true).
+ *  The parts are arguments so that a test can stand in for the browser. */
+export async function eraseDevice({
+  idb = globalThis.indexedDB,
+  storage = globalThis.localStorage,
+  reload = () => globalThis.location.reload(),
+  Channel = globalThis.BroadcastChannel,
+  waitMs = 8000,
+} = {}) {
+  try { const bc = new Channel(LOCK_CHANNEL); bc.postMessage('erase'); bc.close() } catch { /* no other tabs to tell */ }
+  const gone = await Promise.all(DEVICE_DBS.map(name => deleteDb(idb, name, waitMs)))
+  if (!gone.every(Boolean)) return false
+  try {
+    const keys = []
+    for (let i = 0; i < storage.length; i++) keys.push(storage.key(i))
+    for (const key of keys) if (key !== PIN_KEY) storage.removeItem(key)
+    storage.removeItem(PIN_KEY)
+  } catch { return false }
+  reload()
+  return true
+}

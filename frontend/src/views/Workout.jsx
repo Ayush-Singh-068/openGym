@@ -140,7 +140,11 @@ function StartChooser() {
 // The open warm-ups follow the first work set when its weight changes mid-workout (#156,
 // lib/history.js liveReramp): 100 → 110 and the rungs not done yet move with it, on this gym's
 // plates. A rung you typed yourself or already did stays. `e` is the entry in its own unit.
-function rerampOpen(s, e, i) {
+export function rerampOpen(s, e, i) {
+  // A saved workout being edited: every row in it is history, ticked or not. The warm-ups do not
+  // follow a corrected work weight there: a 20 kg x 10 warm-up that was not ticked used to turn
+  // into 30 kg x 10 under the edit, and the confirmation never mentioned it.
+  if (s?.active?.editingWorkoutId) return
   if (!e?.sets || isWarmupRow(e.sets[i]) || e.sets.findIndex(x => !isWarmupRow(x)) !== i) return
   const cfg = { ...(e.target || {}), id: e.id }
   if (modeOf(cfg) !== 'reps') return

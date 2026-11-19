@@ -141,8 +141,9 @@ export default function WorkoutDetailView({ w, close }) {
       title: w.name,
       sections: [
         { items: [
-          { icon: 'calendar', label: t('Change date & time'), onClick: () => workoutDateSheet(w, close) },
-          { icon: 'stopwatch', label: t('Change duration'), onClick: () => workoutDurationSheet(w, close) },
+          // Locked while another workout is open, like Edit workout: tapping says why (sheets.jsx).
+          { icon: 'calendar', label: t('Change date & time'), sub: st.active ? t('Finish your workout first') : undefined, onClick: () => workoutDateSheet(w, close) },
+          { icon: 'stopwatch', label: t('Change duration'), sub: st.active ? t('Finish your workout first') : undefined, onClick: () => workoutDurationSheet(w, close) },
           { icon: 'plus', label: t('Save as routine'), onClick: saveAsRoutine },
         ] },
         { title: t('Share'), items: [

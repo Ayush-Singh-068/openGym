@@ -19,6 +19,13 @@ describe('pruneKeys', () => {
   it('does not depend on the order it is given', () => {
     expect(pruneKeys(['b', 'a', 'c'], 2)).toEqual(['a'])
   })
+  it('counts the copies kept before a restore apart from the day copies', () => {
+    const days = Array.from({ length: SNAP_KEEP }, (_, i) => `2030-02-${String(i + 1).padStart(2, '0')}`)
+    const few = ['2030-02-14 before 2030-02-13T10:00:00', '2030-02-14 before 2030-02-14T09:00:00']
+    expect(pruneKeys([...days, ...few])).toEqual([])
+    const many = Array.from({ length: SNAP_KEEP + 2 }, (_, i) => '2030-02-14 before 2030-02-14T09:' + String(i).padStart(2, '0') + ':00')
+    expect(pruneKeys([...days, ...many])).toEqual(many.slice(0, 2))
+  })
 })
 
 describe('shrank', () => {
@@ -70,13 +77,18 @@ describe('agoOf', () => {
 })
 
 describe('backupStamp and backupFileName', () => {
-  it('stamps the device clock as YYYY-MM-DD-HHMM', () => {
-    expect(backupStamp(new Date(2030, 0, 5, 7, 3))).toBe('2030-01-05-0703')
-    expect(backupStamp(new Date(2030, 0, 5, 0, 0))).toBe('2030-01-05-0000')
+  it('stamps the device clock as YYYY-MM-DD-HHMMSS', () => {
+    expect(backupStamp(new Date(2030, 0, 5, 7, 3, 9))).toBe('2030-01-05-070309')
+    expect(backupStamp(new Date(2030, 0, 5, 0, 0, 0))).toBe('2030-01-05-000000')
   })
   it('names the file with the stamp and the extension', () => {
-    expect(backupFileName('json', new Date(2030, 0, 5, 7, 3))).toBe('opengym-backup-2030-01-05-0703.json')
-    expect(backupFileName('zip', new Date(2030, 0, 5, 7, 3))).toMatch(/\.zip$/)
+    expect(backupFileName('json', new Date(2030, 0, 5, 7, 3, 9))).toBe('opengym-backup-2030-01-05-070309.json')
+    expect(backupFileName('zip', new Date(2030, 0, 5, 7, 3, 9))).toMatch(/\.zip$/)
+  })
+  it('gives two exports in the same minute different names', () => {
+    const a = backupFileName('json', new Date(2030, 0, 5, 7, 3, 9))
+    const b = backupFileName('json', new Date(2030, 0, 5, 7, 3, 41))
+    expect(a).not.toBe(b)
   })
 })
 

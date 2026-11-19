@@ -3618,7 +3618,16 @@ function WorkoutDateEdit({ w, onDone, close }) {
     <Button variant="primary" onClick={save}>{t('Save')}</Button>
   </>
 }
-export const workoutDateSheet = (w, onDone) => ui().openSheet(close => <WorkoutDateEdit w={w} onDone={onDone} close={close} />)
+// A saved workout's date and length are edited like its sets: not while another workout is open,
+// a running one or another edit. The same words as the Edit button of the detail sheet, so the
+// two never disagree about why (WorkoutDetailView.jsx).
+const editBlockedText = () => (S().active?.editingWorkoutId
+  ? t('You are already editing a workout. Finish or discard that edit first.')
+  : t('A workout is in progress. Finish it first, then you can edit this one.'))
+export const workoutDateSheet = (w, onDone) => {
+  if (S().active) { toast(editBlockedText()); return }
+  ui().openSheet(close => <WorkoutDateEdit w={w} onDone={onDone} close={close} />)
+}
 
 // Correcting how long a saved session ran — mostly the workout nobody ended until they got home
 // (Discord). The start stays, the end follows it; the sets, the order of history and the badges
@@ -3654,7 +3663,10 @@ function WorkoutDurationEdit({ w, onDone, close }) {
     <Button variant="primary" onClick={save}>{t('Save')}</Button>
   </>
 }
-export const workoutDurationSheet = (w, onDone) => ui().openSheet(close => <WorkoutDurationEdit w={w} onDone={onDone} close={close} />)
+export const workoutDurationSheet = (w, onDone) => {
+  if (S().active) { toast(editBlockedText()); return }
+  ui().openSheet(close => <WorkoutDurationEdit w={w} onDone={onDone} close={close} />)
+}
 
 // The workout as a picture (#453, redone in 1.4.5): "Share" on the finish summary and "Share as
 // image" in a past workout's options open components/ShareWorkout.jsx: four templates, your own
@@ -4341,8 +4353,15 @@ function EditSummary({ changes, unit }) {
   const name = id => exerciseNameFor(exOr(id))
   const line = c => c.kind === 'exercise-added' ? t('{0} added', name(c.id))
     : c.kind === 'exercise-removed' ? t('{0} removed', name(c.id))
+    : c.warmup ? (c.kind === 'set-added' ? t('{0}, warm-up {1} added: {2}', name(c.id), c.set, editSetText(c.after, unit))
+      : c.kind === 'set-removed' ? t('{0}, warm-up {1} removed (was {2})', name(c.id), c.set, editSetText(c.before, unit))
+      : c.kind === 'set-unticked' ? t('{0}, warm-up {1} unticked (was {2})', name(c.id), c.set, editSetText(c.before, unit))
+      : c.kind === 'set-ticked' ? t('{0}, warm-up {1} ticked: {2}', name(c.id), c.set, editSetText(c.after, unit))
+      : t('{0}, warm-up {1}: {2} → {3}', name(c.id), c.set, editSetText(c.before, unit), editSetText(c.after, unit)))
     : c.kind === 'set-added' ? t('{0}, set {1} added: {2}', name(c.id), c.set, editSetText(c.after, unit))
     : c.kind === 'set-removed' ? t('{0}, set {1} removed (was {2})', name(c.id), c.set, editSetText(c.before, unit))
+    : c.kind === 'set-unticked' ? t('{0}, set {1} unticked (was {2})', name(c.id), c.set, editSetText(c.before, unit))
+    : c.kind === 'set-ticked' ? t('{0}, set {1} ticked: {2}', name(c.id), c.set, editSetText(c.after, unit))
     : t('{0}, set {1}: {2} → {3}', name(c.id), c.set, editSetText(c.before, unit), editSetText(c.after, unit))
   return <div style={{ textAlign: 'start' }}>
     <ul className="small" style={{ margin: '0 0 10px', paddingInlineStart: 18 }}>
