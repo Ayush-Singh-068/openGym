@@ -750,7 +750,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
         {/* The quick weigh-in that opens on Start (sheets.jsx startFlow, issue #137); off skips
             straight to the session. Home and Stats still log weight by hand. */}
         {on('body') && <Row icon="scale" iconTint="var(--green)" title={t('Weigh in before workouts')}
-          subtitle={t('Asks for your body weight when a workout starts. Off starts the session straight away.')}>
+          subtitle={t('Asks for your body weight once a day, when your first workout starts. Off starts the session straight away.')}>
           <Switch checked={S.weighIn !== false} onChange={v => update(s => { s.weighIn = v })} />
         </Row>}
         {/* The daily-form check-in (v1.4.5, lib/daily-form.js): asked once on its own, then this. */}

@@ -68,7 +68,8 @@ import { hasConsent } from '../lib/coach.js'
 import { sessionNoProg, setSessionNoProg, setEntryNoProg, joinSessionNoProg } from '../lib/session-noprog.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { markAllSetsDone, sessionHistory } from '../lib/backfill.js'
-import { bindWatchActions, markDiscarded, watchTickRest, applyRestStep, restAtFor, setStamp } from '../lib/watch-sync.js'
+import { bindWatchActions, watchTickRest, applyRestStep, restAtFor, setStamp } from '../lib/watch-sync.js'
+import { discardActiveWorkout } from '../lib/discard-workout.js'
 import { bestSetFor } from '../lib/exercise-history.js'
 import { bindLiveActions } from '../lib/live-activity.js'
 import { bindWidgetActions } from '../lib/widget-logger.js'
@@ -1420,7 +1421,6 @@ function ActiveWorkout() {
   // of the workout once a second while a rest or a hold counted down (`left` changes each tick).
   const liveRest = useUI(s => s.startRest)
   const stopRest = useUI(s => s.stopRest)
-  const stopWork = useUI(s => s.stopWork)
   const working = useUI(s => !!s.work)
   const workKey = useUI(s => s.work?.endsAt)
   const timerKey = useUI(s => s.timer && `${s.timer.endsAt}:${s.timer.forIdx ?? ''}`)
@@ -2114,7 +2114,7 @@ function ActiveWorkout() {
   // the two got mixed up (#751).
   // Named for the watch first: gone from its snapshot it would look finished, and be saved to Apple Health (#776).
   // The watch's own Discard (confirmed there) runs this too.
-  const discardNow = () => { markDiscarded(useStore.getState().S.active?.id); update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') }
+  const discardNow = () => { discardActiveWorkout(); nav('/home') }
   const discardWorkout = () => confirmSheet({
     title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
     onConfirm: discardNow,

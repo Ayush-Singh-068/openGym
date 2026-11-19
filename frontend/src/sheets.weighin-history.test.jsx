@@ -140,18 +140,32 @@ describe('log sheet date', () => {
     expect(useUI.getState().sheets).toHaveLength(0)
   })
 
-  // #859: a day can hold several weigh-ins. An earlier day starts on 08:00 when its own has no time.
-  it('adds a second weigh-in to an earlier day, at 08:00, and the day keeps its morning value', () => {
+  // A day holds one weight: logging an earlier day that has one asks, then changes it in place.
+  it('a day that has a weigh-in asks first, and Replace changes that weigh-in instead of adding one', () => {
     bwSheet()
     const log = mountTopSheet()
     setDate(log, '2026-09-03')
     expect(log.querySelector('input[type="time"]').value).toBe('08:00')
     act(() => { button(log, 'Save').click() })
+    const ask = mountTopSheet()
+    expect(ask.textContent).toContain('You already logged 80 kg on')
+    expect(useStore.getState().S.bodyweight.find(b => b.d === '2026-09-03').w).toBe(80)
+    act(() => { button(ask, 'Replace').click() })
     const day = useStore.getState().S.bodyweight.find(b => b.d === '2026-09-03')
-    expect(day.ins.map(r => [r.at, r.w])).toEqual([[null, 80], ['08:00', 79]])
-    expect(day.w).toBe(80)
+    expect(day.ins.map(r => [r.at, r.w])).toEqual([[null, 79]])
+    expect(day.w).toBe(79)
     expect(useStore.getState().S.bodyweight).toHaveLength(5)
-    expect(useUI.getState().toastMsg).toBe('Weight saved')
+    expect(useUI.getState().toastMsg).toBe('Weight changed to 79 kg')
+  })
+
+  it('Cancel on that question changes nothing', () => {
+    bwSheet()
+    const log = mountTopSheet()
+    setDate(log, '2026-09-03')
+    act(() => { button(log, 'Save').click() })
+    const ask = mountTopSheet()
+    act(() => { button(ask, 'Cancel').click() })
+    expect(useStore.getState().S.bodyweight.find(b => b.d === '2026-09-03')).toMatchObject({ w: 80, t: 2 })
   })
 
   it('does not take a day after today', () => {

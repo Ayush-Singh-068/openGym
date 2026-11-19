@@ -1,5 +1,20 @@
 // Lithuanian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  // --- Bug fix A: the day’s answers ---
+  "Today’s weight": "Today’s weight",
+  "Slide or tap to set your weight. Asked once a day, at your first workout.": "Slide or tap to set your weight. Asked once a day, at your first workout.",
+  "Replace your weight?": "Replace your weight?",
+  "You already logged {0} today. Replace it?": "You already logged {0} today. Replace it?",
+  "You already logged {0} on {1}. Replace it?": "You already logged {0} on {1}. Replace it?",
+  "Weight changed to {0}": "Weight changed to {0}",
+  "Asks for your body weight once a day, when your first workout starts. Off starts the session straight away.": "Asks for your body weight once a day, when your first workout starts. Off starts the session straight away.",
+  "No weigh-ins yet. Log your weight to start the curve (we also ask at your first workout of the day).": "No weigh-ins yet. Log your weight to start the curve (we also ask at your first workout of the day).",
+  "Check-in saved": "Check-in saved",
+  "Check-in deleted": "Check-in deleted",
+  "Felt that day": "Felt that day",
+  "Delete check-in": "Delete check-in",
+  "Weight that day": "Weight that day",
+  "Check-in, no workout": "Check-in, no workout",
   // --- Phase 1b: the workout card ---
   "{0} total · tap to set the sled weight": "{0} total · tap to set the sled weight",
   "{0} is lighter than the bar ({1})": "{0} is lighter than the bar ({1})",

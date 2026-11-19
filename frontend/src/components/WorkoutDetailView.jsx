@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import '../views/history-views.css'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { menuSheet, confirmSheet, exerciseDetailSheet, exerciseHistorySheet, workoutDateSheet, workoutDurationSheet, shareWorkoutSheet, repeatWorkout, AutoEndedNote, mediaGoesToo, saveFitFile } from '../sheets.jsx'
+import { menuSheet, confirmSheet, bwSheet, exerciseDetailSheet, exerciseHistorySheet, workoutDateSheet, workoutDurationSheet, shareWorkoutSheet, repeatWorkout, AutoEndedNote, mediaGoesToo, saveFitFile } from '../sheets.jsx'
 import { NOTE_MAX, countsWarmups } from '../lib/history.js'
 import { scaleName } from '../lib/effort.js'
 import { setTagName } from '../lib/set-tags.js'
@@ -19,6 +19,9 @@ import { printWorkout } from '../lib/report-print.js'
 import { copyText } from '../lib/clipboard.js'
 import { closeThenNav, nav } from '../lib/nav.js'
 import { isOn } from '../lib/modules.js'
+import { formOf } from '../lib/daily-form.js'
+import { readingsOf, readingTime } from '../lib/weigh-ins.js'
+import { dayCheckinSheet, feltLine } from './DayCheckinSheet.jsx'
 import { useSheetKeyboard, tappable } from '../lib/use-sheet-keyboard.js'
 import { buildDetailModel } from '../lib/workout-detail-model.js'
 import { trendGlyph, trendLabel } from '../lib/set-trend.js'
@@ -182,6 +185,8 @@ export default function WorkoutDetailView({ w, close }) {
       {header.prCount > 0 && <div className="wdv-stat pr-tile"><b><Icon name="trophy" />{header.prCount}</b><span>{t('PRs')}</span></div>}
       {header.bodyweight && <div className="wdv-stat"><b>{fmtWeight(header.bodyweight, st.unit)}</b><span>{t('Body weight')}</span></div>}
     </div>
+    {/* What the day said besides the workout: the check-in and the weight, a tap from changing or deleting. */}
+    <DayRows d={header.dateISO} />
     {/* Ended by itself (lib/forgotten-workout.js): said so, with Reopen for 24 hours. */}
     <AutoEndedNote w={w} close={close} />
     {/* Circuits, AMRAPs, EMOMs and intervals: the score and the round times (lib/circuit.js). */}
@@ -235,6 +240,26 @@ export default function WorkoutDetailView({ w, close }) {
         <Icon name="chevronRight" className="menu-chev" />
       </div>
     </div>
+  </div>
+}
+
+// The day's check-in and the day's weight (lib/daily-form.js, lib/weigh-ins.js), each a row that opens
+// its own sheet to change or delete. Nothing at all for a day that has neither.
+function DayRows({ d }) {
+  const st = useStore(s => s.S)
+  const felt = formOf(st, d)
+  const weights = readingsOf((st.bodyweight || []).find(b => b && b.d === d))
+  if (!felt && !weights.length) return null
+  return <div className="list" style={{ marginBottom: 12 }}>
+    {felt && <div className="item" {...tappable(() => dayCheckinSheet(d))}>
+      <div className="grow"><div className="tt">{t('Felt that day')}</div><div className="ss">{feltLine(felt)}</div></div>
+      <Icon name="chevronRight" className="chev" />
+    </div>}
+    {weights.map(r => <div key={r.id} className="item" {...tappable(() => bwSheet({ edit: { d, id: r.id } }))}>
+      <div className="grow"><div className="tt">{t('Weight that day')}</div>
+        <div className="ss">{fmtNum(r.w) + ' ' + st.unit}{weights.length > 1 && readingTime(r) ? ' · ' + readingTime(r) : ''}</div></div>
+      <Icon name="chevronRight" className="chev" />
+    </div>)}
   </div>
 }
 

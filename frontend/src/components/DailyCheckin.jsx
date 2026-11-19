@@ -16,7 +16,7 @@ export const FORM_ROWS = {
   stress: () => ({ icon: 'cloud', label: t('Stress'), lo: t('Calm'), hi: t('Frazzled') }),
 }
 
-function Scale({ k, value, onChange }) {
+export function Scale({ k, value, onChange }) {
   const row = FORM_ROWS[k]()
   const id = 'dfc-' + k
   return <div className="dfc-row">

@@ -142,7 +142,9 @@ import { copyText } from './lib/clipboard.js'
 import { queueRemaining, pinState } from './lib/queue.js'
 import { DAY_NOTE_TAGS, DAY_NOTE_LABEL, DAY_NOTE_ICON, dayNoteOf, dayNoteLine, canNoteDay, withDayNote } from './lib/day-notes.js'
 import { isOn } from './lib/modules.js'
-import { checkinMode, withForm, readForm, goLighter, canGoLighter, LIGHTER_KINDS } from './lib/daily-form.js'
+import { checkinMode, readForm, goLighter, canGoLighter, LIGHTER_KINDS } from './lib/daily-form.js'
+import { commitStaged, weightOn } from './lib/day-answers.js'
+import { dayCheckinSheet, feltLine } from './components/DayCheckinSheet.jsx'
 import { sleepHoursOn } from './lib/vitals.js'
 import DailyCheckin from './components/DailyCheckin.jsx'
 
@@ -445,12 +447,41 @@ function BwSheet({ required, onDone, close, initial, edit }) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayISO()) { toast(t('Choose a valid date')); return }
     // The check-in before a workout is now; a weigh-in at the same time of a day corrects it.
     const at = required ? timeOf(Date.now()) : cleanTime(time) || (date === todayISO() ? timeOf(Date.now()) : DEFAULT_TIME)
+    // The weigh-in before a workout only hands the weight to the workout: it is written to the day when
+    // the workout is saved (lib/day-answers.js), so a discarded workout leaves no weigh-in behind.
+    if (required) { close(); if (onDone) onDone(n, at); return }
+    // A day holds one weight: logging it again asks first, then changes that weight in place (Undo).
+    const mode = dailyModeOf(st)
+    const day = editing ? null : st.bodyweight.find(b => b && b.d === date)
+    const had = day ? (rs => (mode === 'last' ? rs[rs.length - 1] : rs[0]))(readingsOf(day)) : null
+    if (had) {
+      const shown = fmtNum(had.w) + ' ' + unit
+      confirmSheet({
+        title: t('Replace your weight?'),
+        message: date === todayISO() ? t('You already logged {0} today. Replace it?', shown) : t('You already logged {0} on {1}. Replace it?', shown, fmtDate(date, true)),
+        confirmText: t('Replace'),
+        onConfirm: () => {
+          update(s => { editWeighIn(s, date, had.id, { w: n }) })
+          close()
+          ui().toast(t('Weight changed to {0}', fmtNum(n) + ' ' + unit), { action: t('Undo'), onAction: () => update(s => { editWeighIn(s, date, had.id, { w: had.w }) }) })
+        },
+      })
+      return
+    }
     update(s => {
       if (editing) editWeighIn(s, edit.d, edit.id, { d: date, at, w: n })
       else addWeighIn(s, { d: date, at, w: n })
     })
     close()
     if (onDone) onDone(n); else toast(editing ? t('Weigh-in updated') : t('Weight saved'))
+  }
+  // Delete of the weigh-in being edited, with Undo (the same removal the full list makes).
+  const del = () => {
+    let undo = null
+    update(s => { undo = removeWeighIn(s, edit.d, edit.id) })
+    close()
+    if (!undo) return
+    ui().toast(t('Weigh-in deleted'), { action: t('Undo'), onAction: () => update(s => { restoreWeighIn(s, undo) }) })
   }
   const recent = useMemo(() => allReadings(st.bodyweight).reverse().slice(0, 3), [st.bodyweight])
   return <>
@@ -462,12 +493,12 @@ function BwSheet({ required, onDone, close, initial, edit }) {
         nav — so it's a true no-op: the screen underneath is exactly where you left it. */}
     {required
       ? <div className="row between" style={{ marginBottom: 14 }}>
-          <h3 style={{ marginBottom: 0 }}>{t('Quick check-in')}</h3>
+          <h3 style={{ marginBottom: 0 }}>{t('Today’s weight')}</h3>
           <button className="iconbtn" aria-label={t('Cancel')} onClick={() => close()}><Icon name="xmark" /></button>
         </div>
       : <h3>{editing ? t('Edit weigh-in') : t('Log body weight')}</h3>}
     {required
-      ? <div className="muted small">{t('Slide or tap to set your weight. We ask before every workout so your curve stays honest.')}</div>
+      ? <div className="muted small">{t('Slide or tap to set your weight. Asked once a day, at your first workout.')}</div>
       : <div className="row bw-when">
           <label className="measure-date">
             <span>{t('Date')}</span>
@@ -482,6 +513,10 @@ function BwSheet({ required, onDone, close, initial, edit }) {
     <WeightInput value={v} setValue={setV} unit={unit} />
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{required ? t('Save & start workout') : t('Save')}</Button>
+    {editing && <>
+      <div style={{ height: 8 }} />
+      <Button variant="ghost" icon="trash" style={{ color: 'var(--red)' }} onClick={del}>{t('Delete weigh-in')}</Button>
+    </>}
     {required && <>
       <div style={{ height: 8 }} /><Button variant="ghost" className="dim" onClick={() => { close(); onDone && onDone(null) }}>{t('Start without weighing in')}</Button>
       <div style={{ height: 2 }} /><Button variant="ghost" className="dim" icon="swap" onClick={() => closeThenNav(close, '/workout')}>{t('Choose a different workout')}</Button>
@@ -3810,41 +3845,62 @@ export function DayNoteRow({ iso, note }) {
   </div>
 }
 
+/* a day with a check-in and no saved workout (it was never saved with one, or the workout was deleted), as History lists it */
+export function FeltRow({ d, felt }) {
+  return <div className="item day-note-row" {...tappable(() => dayCheckinSheet(d))}>
+    <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19, background: 'var(--surface-3)' }}><Icon name="moon" /></span>
+    <div className="grow"><div className="tt">{t('Check-in, no workout')}</div>
+      <div className="ss">{[fmtDate(d, true), feltLine(felt)].filter(Boolean).join(' · ')}</div></div>
+    <Icon name="chevronRight" className="chev" />
+  </div>
+}
+
 /* ============================ workout lifecycle ============================ */
 // `routineIds` accepts `string | string[] | null` — `[r.id]` for one routine,
 // `effectiveRoutineIds(...)` for today's planned session, `[]` / null for explicit freestyle.
 // `opts.lead`: exercises a last session did not get to (lib/leftovers.js, #985), done first.
 export function startFlow(routineIds, opts = {}) {
-  // The daily-form check-in comes first (v1.4.5, lib/daily-form.js): only when switched on
-  // (Settings → Workout), never with the Health module off, once a day.
-  if (!opts.checked && checkinMode(S(), todayISO())) { dailyCheckinSheet(routineIds, opts); return }
-  // The weigh-in is a setting (Settings → During a workout, issue #137): off goes straight
-  // into the session with no body weight on it, same as "Start without weighing in".
-  // Off in Settings → Workout, or with the Body module (Settings → Modules): straight into the session.
-  if (S().weighIn === false || !isOn(S(), 'body')) { beginWorkout(routineIds, null, opts); return }
-  bwSheet({ required: true, onDone: bw => beginWorkout(routineIds, bw, opts) })
+  askBeforeStart(() => buildCombinedEntries(S(), routineIds).entries,
+    (bw, more) => beginWorkout(routineIds, bw, { ...opts, ...more }))
 }
-function dailyCheckinSheet(routineIds, opts) {
+// The two questions a workout asks at Start, each once a day (lib/day-answers.js): the daily-form
+// check-in (v1.4.5, lib/daily-form.js), only when switched on in Settings → Workout and never with the
+// Health module off, then the body weight (Settings → During a workout, issue #137; off, or with the
+// Body module off, it is skipped). A day that already has the answer is not asked again. The answers
+// go to the workout, not to the day: they are written when the workout is saved. `entriesFor()` are
+// the entries the session will start with (which ways of going lighter it can take); `go(bw, more)`
+// starts it: `bw` the weight (or null), `more` { lighter, staged } for beginWorkout.
+function askBeforeStart(entriesFor, go, got = null) {
   const st = S()
   const today = todayISO()
+  if (!got && checkinMode(st, today)) { dailyCheckinSheet(entriesFor, go); return }
+  const pack = (bw, at) => {
+    const staged = {}
+    if (got?.form) staged.form = got.form
+    if (got?.lighter) staged.lighter = got.lighter
+    if (bw > 0 && at) staged.bw = { w: bw, at }
+    return { ...(got?.lighter ? { lighter: got.lighter } : {}), ...(Object.keys(staged).length ? { staged } : {}) }
+  }
+  if (st.weighIn === false || !isOn(st, 'body')) { go(null, pack()); return }
+  const known = weightOn(st, today)
+  if (known != null) { go(known, pack()); return }
+  bwSheet({ required: true, onDone: (bw, at) => go(bw, pack(bw, at)) })
+}
+function dailyCheckinSheet(entriesFor, go) {
+  const today = todayISO()
   // Which ways of going lighter this session can take, worked out on the entries it will start with.
-  const preview = { entries: buildCombinedEntries(st, routineIds).entries }
+  const preview = { entries: entriesFor() }
   const lighter = LIGHTER_KINDS.filter(k => canGoLighter(preview, k))
   // Last night's sleep from the phone's health store, when its vitals are read (lib/vitals.js).
   const sleep = MOBILE ? Promise.all([loadHealth(), nativePlatform()])
     .then(([h, platform]) => (h?.readVitals ? { hours: sleepHoursOn(h.vitals, today), platform } : null)).catch(() => null) : null
-  const go = more => startFlow(routineIds, { ...opts, checked: true, ...more })
   ui().openSheet(close => <DailyCheckin lighter={lighter} sleep={sleep}
-    onDone={({ form, lighter: kind }) => {
-      close()
-      if (readForm(form)) update(s => { s.dayForm = withForm(s.dayForm, today, { ...form, lighter: kind }) })
-      go(kind ? { lighter: kind } : {})
-    }}
-    onSkip={() => { close(); go({}) }} />)
+    onDone={({ form, lighter: kind }) => { close(); askBeforeStart(entriesFor, go, { form: readForm(form) ? form : null, lighter: kind || null }) }}
+    onSkip={() => { close(); askBeforeStart(entriesFor, go, { form: null, lighter: null }) }} />)
 }
 // `opts` from the Apple Watch (lib/watch-sync.js): a session started there keeps the watch's id,
 // so the sets ticked on it find it, and its start time, however late the phone hears of it.
-export function beginWorkout(routineIds, bw, { id = null, start = null, lead = null, lighter = null } = {}) {
+export function beginWorkout(routineIds, bw, { id = null, start = null, lead = null, lighter = null, staged = null } = {}) {
   const st = S()
   const built = buildCombinedEntries(st, routineIds)
   const { routineIds: rids, routines } = built
@@ -3864,6 +3920,8 @@ export function beginWorkout(routineIds, bw, { id = null, start = null, lead = n
       // Snapshot the layout at start so the header ⋮ can change it for this session only —
       // changing the saved default (Settings → Workout view) mid-session leaves it alone.
       workoutView: st.workoutView || 'cards',
+      // What Start asked for the day (check-in, weight): written to the day when this workout is saved.
+      ...(staged ? { staged } : {}),
     }
   })
   // "Go lighter" from the check-in (lib/daily-form.js): today's numbers only, said so.
@@ -3889,13 +3947,14 @@ export function repeatWorkout(w, close) {
   if (st.active) { toast(t('Finish the current workout first.')); return }
   const { entries, skipped } = repeatSessionEntries(st, w)
   if (!entries.length) { toast(t('Nothing to repeat. Its exercises no longer exist.')); return }
-  const go = bw => {
+  const go = (bw, more) => {
     if (S().active) { toast(t('Finish the current workout first.')); return }
     update(s => {
       s.active = {
         id: uid(), d: todayISO(), start: Date.now(), routineIds: [],
         name: w.name || t('Freestyle'), bw: bw || null, cur: 0, entries,
         workoutView: s.workoutView || 'cards',
+        ...(more?.staged ? { staged: more.staged } : {}),
       }
     })
     useUI.getState().stopRest()
@@ -3903,9 +3962,8 @@ export function repeatWorkout(w, close) {
     autoGymHere()
     if (skipped) toast(tn('{0} exercise no longer exists and was left out.', '{0} exercises no longer exist and were left out.', skipped))
   }
-  if (st.weighIn === false) { go(null); return }
   if (close) close()
-  bwSheet({ required: true, onDone: go })
+  askBeforeStart(() => [], go)
 }
 
 // A built session (components/SessionBuilder.jsx, lib/session-builder.js) as a freestyle workout
@@ -3914,7 +3972,7 @@ export function repeatWorkout(w, close) {
 export function startBuiltSession(cfgs, name, close) {
   const st = S()
   if (st.active) { toast(t('Finish the current workout first.')); return }
-  const go = bw => {
+  const go = (bw, more) => {
     if (S().active) { toast(t('Finish the current workout first.')); return }
     const now = S()
     const entries = cfgs.map(c => ({ id: c.id, ...buildSessionEntry(now, c.id, c, null) }))
@@ -3923,15 +3981,15 @@ export function startBuiltSession(cfgs, name, close) {
         id: uid(), d: todayISO(), start: Date.now(), routineIds: [],
         name: name || t('Freestyle'), bw: bw || null, cur: 0, entries,
         workoutView: s.workoutView || 'cards',
+        ...(more?.staged ? { staged: more.staged } : {}),
       }
     })
     useUI.getState().stopRest()
     if (close) closeThenNav(close, '/workout'); else navToWorkout()
     autoGymHere()
   }
-  if (st.weighIn === false || !isOn(st, 'body')) { go(null); return }
   if (close) close()
-  bwSheet({ required: true, onDone: go })
+  askBeforeStart(() => [], go)
 }
 
 /* ============================ log a past workout ============================ */
@@ -4662,6 +4720,9 @@ function doFinishWorkout({ end: endAt, auto } = {}) {
         if (mx > 0 && beatsWeight(e.id, mx, (s.exWeights[e.id] || {}).w || 0)) s.exWeights[e.id] = { w: mx, d: w.d }
       })
       s.workouts.push(w)
+      // What Start asked for the day (check-in, weight) is kept now that the workout is: a day that
+      // already has them keeps its own (lib/day-answers.js).
+      commitStaged(s, A, Date.now())
     }
     // The run/walk ladder moves up now that the session is saved (lib/circuit.js).
     applyProgramAdvances(s.routines, A.circuits)

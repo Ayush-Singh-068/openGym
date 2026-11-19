@@ -46,7 +46,7 @@ beforeEach(() => {
 afterEach(() => { act(() => { mounted.splice(0).forEach(root => root.unmount()) }) })
 
 describe('the log sheet', () => {
-  it('starts on now, and a second weigh-in today joins the first', () => {
+  it('starts on now, and a second weigh-in today asks first and then changes the first one in place', () => {
     bwSheet()
     const log = mountTopSheet()
     const time = log.querySelector('input[type="time"]')
@@ -55,17 +55,26 @@ describe('the log sheet', () => {
     act(() => { button(log, 'Save').click() })
     bwSheet()
     const again = mountTopSheet()
-    setValue(again.querySelector('input[type="time"]'), '22:00')
+    act(() => { button(again, '+1').click() })
     act(() => { button(again, 'Save').click() })
-    expect(readingsOf(dayOf(todayISO())).map(r => r.at)).toEqual(['06:30', '22:00'])
+    const ask = mountTopSheet()
+    expect(ask.textContent).toContain('You already logged 79.5 kg today. Replace it?')
+    expect(readingsOf(dayOf(todayISO())).map(r => [r.at, r.w])).toEqual([['06:30', 79.5]])
+    act(() => { button(ask, 'Replace').click() })
+    expect(readingsOf(dayOf(todayISO())).map(r => [r.at, r.w])).toEqual([['06:30', 80.5]])
+    expect(useUI.getState().toastMsg).toBe('Weight changed to 80.5 kg')
+    act(() => { useUI.getState().runToastAction() })
+    expect(readingsOf(dayOf(todayISO())).map(r => [r.at, r.w])).toEqual([['06:30', 79.5]])
   })
 
-  it('the check-in before a workout saves at now, with no time to pick', () => {
-    bwSheet({ required: true })
+  it('the weigh-in before a workout has no time to pick and writes nothing: it hands the weight and its time to the workout', () => {
+    const got = []
+    bwSheet({ required: true, onDone: (w, at) => got.push([w, at]) })
     const log = mountTopSheet()
     expect(log.querySelector('input[type="time"]')).toBeNull()
     act(() => { button(log, 'Save & start workout').click() })
-    expect(readingsOf(dayOf(todayISO()))[0].at).toBe(timeOf(Date.now()))
+    expect(got).toEqual([[79.5, timeOf(Date.now())]])
+    expect(dayOf(todayISO())).toBeUndefined()
   })
 
   it('takes a weight an assistant heard', () => {

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import { DEF, useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
-import { startFlow } from './sheets.jsx'
+import { startFlow, finishWorkoutNow } from './sheets.jsx'
 import { isWarmupRow } from './lib/workout-model.js'
 
 const BENCH = '0025'
@@ -65,7 +65,7 @@ describe('the daily check-in on Start', () => {
     expect(S().dayForm).toEqual({})
   })
 
-  it('a good day: the answers are kept for today and nothing about the session changes', () => {
+  it('a good day: the answers ride on the workout, are kept for today once it is saved, and nothing about the session changes', () => {
     install({ dailyForm: true })
     act(() => startFlow(['A']))
     const host = mountTopSheet()
@@ -73,10 +73,13 @@ describe('the daily check-in on Start', () => {
     act(() => pip(host, 1, 5).click())
     expect(host.querySelector('.dfc-light')).toBeNull()
     act(() => button(host, 'Start workout').click())
-    expect(S().dayForm['2026-11-06']).toMatchObject({ sleep: 4, energy: 5 })
+    expect(S().dayForm).toEqual({})
+    expect(S().active.staged.form).toMatchObject({ sleep: 4, energy: 5 })
     const work = S().active.entries[0].sets.filter(r => !isWarmupRow(r))
     expect(work.every(r => r.w === 80)).toBe(true)
     expect(S().active.noProg).toBeUndefined()
+    act(() => finishWorkoutNow())
+    expect(S().dayForm['2026-11-06']).toMatchObject({ sleep: 4, energy: 5 })
   })
 
   it('a rough day offers lighter, as planned stays the default, and picking it lightens today only', () => {
@@ -90,11 +93,14 @@ describe('the daily check-in on Start', () => {
     expect(light.querySelector('[aria-checked="true"], .on, [aria-pressed="true"]')?.textContent || 'As planned').toMatch(/As planned/)
     act(() => button(light, 'One set fewer').click())
     act(() => button(host, 'Start workout').click())
-    expect(S().dayForm['2026-11-06']).toMatchObject({ sleep: 1, energy: 2, lighter: 'sets' })
+    expect(S().dayForm).toEqual({})
+    expect(S().active.staged).toMatchObject({ form: { sleep: 1, energy: 2 }, lighter: 'sets' })
     expect(S().active.entries[0].sets.filter(r => !isWarmupRow(r))).toHaveLength(2)
     expect(S().active.noProg).toBe(true)
     expect(S().routines[0].ex[0].sets).toBe(3)
     expect(useUI.getState().toastMsg).toMatch(/one set fewer/i)
+    act(() => finishWorkoutNow())
+    expect(S().dayForm['2026-11-06']).toMatchObject({ sleep: 1, energy: 2, lighter: 'sets' })
   })
 
   it('asks once a day: the second workout of the day starts straight away', () => {

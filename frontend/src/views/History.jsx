@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { t, tn } from '../lib/i18n.js'
-import { WorkoutRow, DayNoteRow, workoutDetailSheet, logPastWorkoutSheet } from '../sheets.jsx'
+import { WorkoutRow, DayNoteRow, FeltRow, workoutDetailSheet, logPastWorkoutSheet } from '../sheets.jsx'
 import { Button } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import { dayNoteOf } from '../lib/day-notes.js'
+import { formDays } from '../lib/daily-form.js'
 import { reportSheet } from '../components/ReportSheet.jsx'
 import { recoverySessionsOf } from '../lib/recovery-sessions.js'
 import { recoverySheet, RecoveryRow } from '../components/RecoverySheet.jsx'
@@ -16,11 +17,13 @@ import { ActivityRow } from '../components/ActivitySheet.jsx'
 // Newest first: every workout, and in between them the days off you left a note on (#261) and the
 // recovery sessions (sauna, ice bath, lib/recovery-sessions.js). A note on a day that has a workout
 // too stays in the day sheet; the workout speaks for that day. A recovery session is always its own row,
-// and so is an activity (a run, a match: lib/activities.js).
+// and so is an activity (a run, a match: lib/activities.js). A day's check-in belongs to its workout's
+// sheet; only one on a day with no workout gets a row (lib/daily-form.js), so it can still be reached.
 export function historyRows(S) {
   const trained = new Set((S.workouts || []).map(w => w?.d))
   const notes = Object.keys(S.dayNotes || {}).filter(d => !trained.has(d)).map(d => ({ d, note: dayNoteOf(S, d) })).filter(x => x.note)
-  const rows = [...(S.workouts || []).map(w => ({ d: w.d, w })), ...notes, ...recoverySessionsOf(S).map(r => ({ d: r.d, rec: r })), ...activitiesOf(S).map(a => ({ d: a.d, act: a }))]
+  const felt = formDays(S).filter(f => !trained.has(f.d)).map(f => ({ d: f.d, felt: f }))
+  const rows = [...(S.workouts || []).map(w => ({ d: w.d, w })), ...notes, ...felt, ...recoverySessionsOf(S).map(r => ({ d: r.d, rec: r })), ...activitiesOf(S).map(a => ({ d: a.d, act: a }))]
   // Stable, so workouts keep the order they are stored in (by day, then start) within a day.
   return rows.map((r, i) => [r, i]).sort((a, b) => (a[0].d < b[0].d ? 1 : a[0].d > b[0].d ? -1 : b[1] - a[1])).map(([r]) => r)
 }
@@ -60,6 +63,7 @@ export default function History() {
       ? <WorkoutRow key={r.w.id} w={r.w} tour={i === 0 ? 'history-row' : undefined} onClick={() => workoutDetailSheet(r.w)} />
       : r.rec ? <RecoveryRow key={'rec-' + r.rec.id} r={r.rec} />
       : r.act ? <ActivityRow key={'act-' + r.act.id} a={r.act} />
+      : r.felt ? <FeltRow key={'felt-' + r.d} d={r.d} felt={r.felt} />
       : <DayNoteRow key={'note-' + r.d} iso={r.d} note={r.note} />)}</div>
       {more && <div ref={end} aria-hidden="true" style={{ height: 1 }} />}</>
       : <EmptyState icon="history" text={t('No workouts yet. Your first one will land here.')}>

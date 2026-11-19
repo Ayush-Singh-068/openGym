@@ -327,7 +327,7 @@ export default function Home() {
       </> : <>
         <div className="muted small">{S.weighIn === false
           ? t('No weigh-ins yet. Log your weight to start the curve.')
-          : t("No weigh-ins yet. Log your weight to start the curve (we also ask before every workout).")}</div>
+          : t('No weigh-ins yet. Log your weight to start the curve (we also ask at your first workout of the day).')}</div>
         <Button size="sm" variant="ghost" icon="target" className="bw-goal" style={{ marginTop: 6, ...(S.targetW ? { color: 'var(--gold-ink)' } : {}) }} onClick={goalSheet}>{S.targetW ? fmtNum(S.targetW) : t('Goal')}</Button>
       </>}
     </div>}

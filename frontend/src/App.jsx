@@ -29,7 +29,8 @@ import { applyOrientation } from './lib/orientation.js'
 import { initBackButton } from './lib/back.js'
 import { installEdgeSwipeBack, BACK_PREVIEW_EVENT } from './lib/edge-swipe-back.js'
 import { pageMotion } from './lib/page-motion.js'
-import { startWatchSync, bindWatchAppActions, patchSetIn, watchStatus, watchClaimed, onWatchClaim, markDiscarded, notePhoneOpen, ensureWatchSet } from './lib/watch-sync.js'
+import { startWatchSync, bindWatchAppActions, patchSetIn, watchStatus, watchClaimed, onWatchClaim, notePhoneOpen, ensureWatchSet } from './lib/watch-sync.js'
+import { discardActiveWorkout } from './lib/discard-workout.js'
 import { buildSessionEntry } from './lib/session-start.js'
 import { EXIDX } from './lib/exercises.js'
 import { readWatchPrefs, readWatchStatus } from './lib/watch-settings.js'
@@ -578,12 +579,7 @@ export default function App() {
       // Discard from the card asks once more, as the workout screen's Discard does.
       discard: () => confirmSheet({
         title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
-        onConfirm: () => {
-          markDiscarded(useStore.getState().S.active?.id)
-          useStore.getState().update(s => { s.active = null })
-          useUI.getState().stopRest(); useUI.getState().stopWork()
-          nav('/home')
-        },
+        onConfirm: () => { discardActiveWorkout(); nav('/home') },
       }),
       openPrompt: openForgottenPrompt(useUI),
       gymOn: () => readGymConfig().on,
