@@ -35,6 +35,14 @@ export function applyTrainerDefaults(S) {
     S.autoNextExercise = true
     changed = true
   }
+  // Collapse completed exercises, once per profile (collapseV1): on in the List, so the open exercise
+  // is the one you do next. A switch-off in Settings is kept, because the flag makes this a no-op after
+  // the first run.
+  if (S.collapseV1 !== true) {
+    S.collapseV1 = true
+    S.collapseCompleted = true
+    changed = true
+  }
   return changed
 }
 

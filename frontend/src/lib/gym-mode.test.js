@@ -180,7 +180,7 @@ describe('applyTrainerDefaults: Gym mode (gymModeV1)', () => {
   })
 
   it('a profile already moved keeps a later switch-off', () => {
-    const S = { trainerDefaultsV1: true, layoutV2: true, gymModeV1: true, gymMode: false, spokenCues: false, autoNextExercise: false }
+    const S = { trainerDefaultsV1: true, layoutV2: true, gymModeV1: true, collapseV1: true, gymMode: false, spokenCues: false, autoNextExercise: false }
     expect(applyTrainerDefaults(S)).toBe(false)
     expect(S).toMatchObject({ gymMode: false, spokenCues: false, autoNextExercise: false })
   })

@@ -43,6 +43,8 @@ function render(node) {
 }
 function mount(entries, { view = 'list', cur = 0 } = {}) {
   const S = clone(DEF)
+  // These tests are about the card itself; folding finished exercises has its own tests.
+  S.collapseCompleted = false
   S.unit = 'kg'
   S.workoutView = view
   Object.assign(S, { gymMode: true, gymOpts: { big: true, asPlanned: true, next: true, awake: true } })

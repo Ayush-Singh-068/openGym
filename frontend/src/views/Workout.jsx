@@ -22,6 +22,7 @@ import { t, tn, exerciseNameFor, exerciseNameClass } from '../lib/i18n.js'
 import { nameIn, said } from '../lib/a11y-name.js'
 import { api, beacon } from '../lib/api.js'
 import { pyramidRestFor, maxRecordAt, isPyramid, pyramidLabel } from '../lib/pyramid.js'
+import { markerAfterDone } from '../lib/list-marker.js'
 import { insertionIndexAfterCurrentUnit, nextUnfinishedUnit, setProgressHighWater, supersetFlowStep, restAfterSet, restOnRecheck, restSecFor, warmupRestSecFor, sideRestFor, ownSetRest, ownExerciseRest, stepUnitIndex, advanceAfterTimedRest, transitionRestFor, restKindAfter } from '../lib/supersetFlow.js'
 import Media from '../components/Media.jsx'
 import WorkoutScrollAnchor from '../components/WorkoutScrollAnchor.jsx'
@@ -1493,6 +1494,17 @@ function ActiveWorkout() {
   // The session's own choice (the Layout menu) wins over the saved one (Settings → Workout), the
   // way the layout itself does, so someone who always wants it switches it on once.
   const collapseOn = listMode && !!(A.collapseCompleted ?? S.collapseCompleted)
+  // Turning collapse on (the Layout menu, Settings, or the default) while the marker sits on a finished
+  // exercise moves it to the next open one, as if it had been on from the start. Without this the
+  // marker stayed on the finished exercise until something else moved it.
+  useEffect(() => {
+    if (!collapseOn) return
+    update(s => {
+      if (!s.active) return
+      const next = markerAfterDone(s.active.entries, s.active.cur)
+      if (next != null) { s.active.cur = next; revealCur.current = true }
+    })
+  }, [collapseOn])
   // Cards and Focus: Prev, Next and the swipe jump over finished exercises (#523).
   const skipDone = !listMode && S.skipCompleted === true
   // A routine that is one circuit and nothing else (Plan → routine → Routine type) opens on its
@@ -2541,12 +2553,12 @@ function ActiveWorkout() {
         return
       }
 
-      // With finished exercises folding away in the list, the one you just finished does too: the
-      // marker moves on to what is left, so the open unit is the next thing to do (Discord: "view
-      // only what I have yet to do"). The scroll anchor holds what is on screen while it folds,
-      // and revealCur brings the next exercise up if it was left low on the screen. Only on new
-      // progress, never on a re-tick, and never in the other layouts, where the marker stays put.
-      if (collapseOn && freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur)) {
+      // In the list the marker moves on from the exercise you just finished, folded away or not, so
+      // the open unit is always the next thing to do. Collapse only decides whether finished ones
+      // fold away. The scroll anchor holds what is on screen, and revealCur brings the next exercise
+      // up if it was left low on the screen. Only on new progress, never on a re-tick, and never in
+      // the other layouts, where the marker stays put.
+      if (listMode && freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur)) {
         revealCur.current = true
         update(s => { if (s.active) s.active.cur = nextUnit[0] })
       }

@@ -147,9 +147,10 @@ export const DEF = {
   // once by applyTrainerDefaults (gymModeV1).
   gymMode: LOCAL_BUILD,
   gymOpts: { big: true, asPlanned: true, next: true, awake: true },
-  // List and Compact fold a finished exercise into one line (Settings → Workout; #241). The
-  // workout's Layout menu can flip it for the running session (s.active.collapseCompleted).
-  collapseCompleted: false,
+  // List and Compact fold a finished exercise into one line (Settings → Workout; #241). On by default,
+  // so the open exercise is always the one marked next. The workout's Layout menu can flip it for the
+  // running session (s.active.collapseCompleted).
+  collapseCompleted: true,
   // How the Library, the exercise picker and the muscle explorer show exercises — 'list' (rows
   // with a small thumbnail) or 'cards' (a grid of pictures with the name underneath). Switched
   // by the button in those headers (ExerciseViewToggle); older profiles overlay onto the list.
@@ -2292,7 +2293,7 @@ export const useStore = create((set, get) => {
         // What localStorage already holds goes into the second copy at once, not at the next change.
         if (hasData(get().S)) scheduleMirror(stateJson(get().S), get().S._ts || 0)
         // Trainer defaults, once per profile (lib/next-targets.js): the flag makes later boots a no-op.
-        get().update(s => { if (s.trainerDefaultsV1 !== true || s.layoutV2 !== true || s.gymModeV1 !== true) applyTrainerDefaults(s) })
+        get().update(s => { if (s.trainerDefaultsV1 !== true || s.layoutV2 !== true || s.gymModeV1 !== true || s.collapseV1 !== true) applyTrainerDefaults(s) })
         keepStorage()
         initFolderBackup()
         if (WEB_COACH) { try { set({ coachLocal: coachDeviceSettings(await loadCoachDevice()) }) } catch { /* no device file yet */ } }

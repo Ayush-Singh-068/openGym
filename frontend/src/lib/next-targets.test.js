@@ -26,7 +26,7 @@ describe('applyTrainerDefaults', () => {
   it('moves a profile once: starts from last, and sets the flag', () => {
     const S = { startFrom: 'plan' }
     expect(applyTrainerDefaults(S)).toBe(true)
-    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true, layoutV2: true, workoutView: 'list', gymModeV1: true, gymMode: true, spokenCues: true, autoNextExercise: true })
+    expect(S).toEqual({ startFrom: 'last', trainerDefaultsV1: true, layoutV2: true, workoutView: 'list', gymModeV1: true, gymMode: true, spokenCues: true, autoNextExercise: true, collapseV1: true, collapseCompleted: true })
   })
 
   it('a second call does nothing, so a later choice of plan is kept', () => {
@@ -35,6 +35,15 @@ describe('applyTrainerDefaults', () => {
     S.startFrom = 'plan'
     expect(applyTrainerDefaults(S)).toBe(false)
     expect(S.startFrom).toBe('plan')
+  })
+
+  it('turns collapse on once, and a later switch-off in Settings is kept', () => {
+    const S = { collapseCompleted: false }
+    applyTrainerDefaults(S)
+    expect(S.collapseCompleted).toBe(true)
+    S.collapseCompleted = false
+    applyTrainerDefaults(S)
+    expect(S.collapseCompleted).toBe(false)
   })
 
   it('tolerates no state', () => {

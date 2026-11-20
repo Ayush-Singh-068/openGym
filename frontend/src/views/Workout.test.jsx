@@ -2235,9 +2235,9 @@ describe('workout list view', () => {
     expect(mocks.S.active.workoutView).toBe('list')
   })
 
-  // Since !92 finishing an exercise no longer moves the current marker on its own (cards use
-  // Next, the list uses "Set current"); completion still starts the rest like cards do.
-  it('completing a set in list mode starts the rest and leaves the current marker in place, like cards do', async () => {
+  // Finishing the marked exercise in the list moves the marker on to the next open one, so the
+  // exercise marked is the one you do next; completion still starts the rest like cards do.
+  it('completing the marked exercise in list mode starts the rest and moves the marker to the next open one', async () => {
     await mount([
       exercise('plain-bench', [false], { asked: true }),
       exercise('plain-row', [false], { asked: true }),
@@ -2246,7 +2246,7 @@ describe('workout list view', () => {
     await toggleSet(0)
 
     expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
-    expect(mocks.S.active.cur).toBe(0)
+    expect(mocks.S.active.cur).toBe(1)
     expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.objectContaining({ forSet: expect.any(Number) }))
   })
 
@@ -2622,11 +2622,16 @@ describe('collapsing completed workout exercises', () => {
     expect(mocks.S.active.cur).toBe(0)
   })
 
-  it('keeps the marker where it is when collapsing is off', async () => {
+  it('moves the marker off a finished exercise as soon as collapsing is on, even if it was finished first', async () => {
+    await mount([exercise('bench', [true]), exercise('row', [false])], 0, { active: { workoutView: 'list', collapseCompleted: true } })
+    expect(mocks.S.active.cur).toBe(1)
+  })
+
+  it('moves the marker on when the marked exercise is finished, even with collapsing off, and does not fold it', async () => {
     await mount([exercise('bench', [true, false]), exercise('row', [false])], 0, { active: { workoutView: 'list' } })
     await toggleSet(1)
     await rerender()
-    expect(mocks.S.active.cur).toBe(0)
+    expect(mocks.S.active.cur).toBe(1)
     expect(container.querySelector('.wl-summary')).toBeNull()
   })
 

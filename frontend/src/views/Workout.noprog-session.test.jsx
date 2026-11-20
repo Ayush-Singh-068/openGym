@@ -44,6 +44,8 @@ function mount(S) {
 }
 function renderWorkout(entries, { workouts = [] } = {}) {
   const S = clone(DEF)
+  // Folding finished exercises has its own tests; these are about the set counts.
+  S.collapseCompleted = false
   S.routines = clone(routines)
   S.workouts = clone(workouts)
   // List view: every exercise's card is on screen at once.
@@ -52,6 +54,7 @@ function renderWorkout(entries, { workouts = [] } = {}) {
 }
 function renderEditor(saved) {
   const S = clone(DEF)
+  S.collapseCompleted = false
   S.routines = clone(routines)
   S.workouts = [clone(saved)]
   S.workoutView = 'list'
