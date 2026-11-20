@@ -3,6 +3,7 @@ import { completedVolumeOf, isWarmupRow } from './workout-model.js'
 import { bestSetOf } from './onerm.js'
 import { beatsWeight } from './exercises.js'
 import { currentDbLoad, historyAs, volumeFactor, workoutAs } from './dumbbells.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 // One exercise's past, read back for the history sheet (issue #43): a chart series and the
 // last few sessions, derived in a single pass over the log so the sheet can memoise the
@@ -52,7 +53,7 @@ export function exerciseHistory(S, exId, { limit = HISTORY_SESSIONS } = {}) {
   logged.sort((a, b) => workoutAt(a.w) - workoutAt(b.w))
 
   const empty = { mode: modeOf({ id: exId }), metric: 'weight', best: 0, prId: null, total: 0, sessions: [], points: [], e1rmPoints: [] }
-  if (!logged.length) return empty
+  if (!logged.length || isWarmupExercise(exId)) return empty
 
   const mode = logged[logged.length - 1].mode
   const repsOnly = mode === 'reps' && !logged.some(l => l.mode === 'reps' && bestWeightForEntry(l.en) > 0)

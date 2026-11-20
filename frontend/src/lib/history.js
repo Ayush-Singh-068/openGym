@@ -32,6 +32,7 @@ import { isoRun, ltrRun } from './bidi.js'
 import { gymSplitView } from './gym-split.js'
 import { queueNext, pinState, queueLiveOn } from './queue.js'
 import { isPyramid, pyramidLabel, pyramidTargetAt, pyramidWeightAt, PYRAMID_MAX } from './pyramid.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 // When a workout happened, as epoch ms: its own recorded start, else noon on its calendar day.
 // Noon rather than midnight because `new Date('2026-09-22')` parses as UTC midnight, which any
@@ -948,6 +949,7 @@ export function workoutVolume(w, { warmups = false, bodyweight = 0 } = {}) {
   // a pull-up rep then moves that times the exercise's share plus the belt, an assisted one the
   // share less the machine's help (never below 0). Reps sets only; a hold has no tonnage.
   ;(Array.isArray(w?.entries) ? w.entries : []).forEach(e => {
+    if (isWarmupExercise(e?.id)) return
     const f = volumeFactor(e)
     const body = bodyweight > 0 ? bodyLoadOf(e?.id) : null
     const own = body ? bodyweight * body.share : 0
@@ -1437,7 +1439,7 @@ export const removeLastSet = rows => rows.length ? removeRowAt(rows, rows.length
  *  warm-ups on a workout that had none. */
 export function workSetsDone(w) {
   return (w?.entries || []).reduce(
-    (n, e) => n + (e.sets || []).reduce((m, s) => m + (isWarmupRow(s) ? 0 : doneUnits(s)), 0), 0,
+    (n, e) => n + (isWarmupExercise(e?.id) ? 0 : (e.sets || []).reduce((m, s) => m + (isWarmupRow(s) ? 0 : doneUnits(s)), 0)), 0,
   )
 }
 

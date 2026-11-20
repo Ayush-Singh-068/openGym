@@ -40,6 +40,7 @@ import RecoveryHint from '../components/RecoveryHint.jsx'
 import { FastingLine } from '../components/SisterApps.jsx'
 import { ChallengesCard } from '../components/Challenges.jsx'
 import { isOn } from '../lib/modules.js'
+import { withoutEmptyWorkouts } from '../lib/workout-count.js'
 
 // The word a week-strip day gets for its status, read by screen readers and on hover.
 const dayStatusLabel = st => ({
@@ -86,17 +87,19 @@ export default function Home() {
   // first session done when its next one is today's too, leaves the row offering what is still
   // to do, as Start and the progress row already do. A queue session is never "covered" by an
   // earlier workout: the queue only names one it does not count as done yet.
-  const loggedToday = S.workouts.filter(w => w.d === todayISO())
+  // A workout with nothing logged is not counted on this screen (lib/workout-count.js).
+  const SW = withoutEmptyWorkouts(S)
+  const loggedToday = SW.workouts.filter(w => w.d === todayISO())
   const queueIds = queueOf(S)?.ids || []
   const coveredToday = id => !queueIds.includes(id) && loggedToday.some(w => (Array.isArray(w.routineIds) ? w.routineIds : [w.routineId]).includes(id))
   // Today skipped on purpose (lib/day-status.js): the row says so and offers the undo.
-  const skip = dayStatus(S, todayISO(), today)
+  const skip = dayStatus(SW, todayISO(), today)
   const skippedToday = skip.kind === 'skipped' && !S.active
   const doneToday = (todayRoutines.every(r => coveredToday(r.id)) && loggedToday.at(-1)) || null
   // What each day of the shown week was (lib/day-status.js): trained, skipped, missed, rest or to come.
   const weekFrom = isoOf(wkStart)
   const weekTo = isoOf(new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() + 6, 12))
-  const statuses = statusesBetween(S, weekFrom, weekTo, today)
+  const statuses = statusesBetween(SW, weekFrom, weekTo, today)
   const strip = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(wkStart); d.setDate(wkStart.getDate() + i)
@@ -140,9 +143,9 @@ export default function Home() {
   const next = !S.active && !todayRoutines.length && !(rotating && !plannerQueue) ? nextTrainingDay(S, todayISO()) : null
   // The streak card's fraction: this calendar week's workouts over the weekdays with a plan, or,
   // in a coach week, the queue's sessions and your own days together (lib/queue.js weekTally).
-  const tally = weekTally(S, todayISO())
+  const tally = weekTally(SW, todayISO())
   const { done: doneThisWeek, planned: plannedPerWeek } = tally
-  const left = workoutsLeft(S, todayISO())
+  const left = workoutsLeft(SW, todayISO())
   // The streak with its best run and freezes (lib/streak.js), read back from the workouts.
   const todayKey = todayISO()
   const streak = useMemo(() => streakInfo(S, todayKey), [S.workouts, S.weekStart, S.streakRule, S.recoverySessions, S.recoveryStreak, S.activities, S.activityStreak, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -339,7 +342,7 @@ export default function Home() {
       {/* in season, a Santa hat on the flame (components/Seasonal.jsx) */}
       <CardHead className="streak-head" glyph={<span className="streak-flame-wrap"><StreakFlame lit={streak.current > 0} /><SeasonDeco spot="streak-flame" /></span>}
         title={t('{0} week streak', streak.current)} open={{ onClick: () => calendarSheet(), haspopup: 'dialog' }}
-        sub={<>{doneThisWeek}{plannedPerWeek ? ' / ' + plannedPerWeek : ''} {t('this week')} · {tn('{0} workout total', '{0} workouts total', S.workouts.length)}</>}
+        sub={<>{doneThisWeek}{plannedPerWeek ? ' / ' + plannedPerWeek : ''} {t('this week')} · {tn('{0} workout total', '{0} workouts total', SW.workouts.length)}</>}
         action={<Icon name="calendar" className="chev" style={{ fontSize: 'var(--fs-title3)' }} />} />
       {(streak.best > 0 || streak.freezes > 0) && <div className="muted small card-head-indent streak-meta-line"><StreakMeta info={streak} /></div>}
       <StreakParty S={S} info={streak} tally={tally} />

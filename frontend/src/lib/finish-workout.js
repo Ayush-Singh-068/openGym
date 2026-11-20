@@ -7,6 +7,7 @@ import { beatsWeight, betterWeight } from './exercises.js'
 import { is1RMRecord } from './onerm.js'
 import { entryDbLoad } from './dumbbells.js'
 import { cleanBrand } from './gym-split.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 // planSec is live-session bookkeeping: a hold displaced before it finished puts its plan aside so
 // the row still knows what it is asking for (Workout.startTimed). A finished session keeps only
@@ -107,6 +108,7 @@ export function sessionPrs(H, entries, { formula } = {}) {
   const prs = []
   const e1prs = []
   ;(entries || []).forEach(e => {
+    if (isWarmupExercise(e.id)) return
     const loads = (e.sets || []).filter(s => s.done && !isWarmupRow(s)).map(s => s.w).filter(w => w > 0)
     const mx = loads.length ? loads.reduce((a, b) => betterWeight(e.id, a, b)) : 0
     if (isWeightPr(H, e.id, mx, entryDbLoad(e))) prs.push(e.id)

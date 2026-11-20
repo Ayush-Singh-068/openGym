@@ -10,6 +10,7 @@ import { progressSummary } from '../lib/progress-summary.js'
 import { isOn } from '../lib/modules.js'
 import Icon from './Icon.jsx'
 import CardHead from './CardHead.jsx'
+import { withoutEmptyWorkouts } from '../lib/workout-count.js'
 
 // A tiny line through the points, scaled to its own range. Decoration: the numbers say it too.
 function Spark({ pts }) {
@@ -28,7 +29,7 @@ function Delta({ v, unit }) {
 export default function ProgressCard({ S }) {
   const nav = useNavigate()
   const todayKey = todayISO()
-  const p = useMemo(() => progressSummary(S, new Date()), [S.workouts, S.routines, S.week, S.dayPlan, S.dayNotes, S.bodyweight, S.unit, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const p = useMemo(() => progressSummary(withoutEmptyWorkouts(S), new Date()), [S.workouts, S.routines, S.week, S.dayPlan, S.dayNotes, S.bodyweight, S.unit, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
   if (p.empty) return null
 
   const unit = S.unit || 'kg'

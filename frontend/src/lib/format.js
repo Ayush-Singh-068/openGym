@@ -34,6 +34,17 @@ export function fmtDate(iso, long, withYear = false) {
   if (Number.isNaN(d.getTime())) return d.toLocaleDateString(dateLocale(), options)
   return formatter(Intl.DateTimeFormat, dateLocale(), options).format(d)
 }
+// A date for a list: the year only when it is not the current one ("Wed 18 Nov", "Fri 3 Oct 2025").
+export function fmtDateY(iso, long, now = new Date()) {
+  return fmtDate(iso, long, String(iso).slice(0, 4) !== String(now.getFullYear()))
+}
+// "November 2026", in the UI language: the heading over a month of History.
+const MONTH_Y = { month: 'long', year: 'numeric' }
+export function monthHeading(iso) {
+  const d = new Date(String(iso).slice(0, 7) + '-15T12:00:00')
+  if (Number.isNaN(d.getTime())) return ''
+  return formatter(Intl.DateTimeFormat, dateLocale(), MONTH_Y).format(d)
+}
 export function fmtChatTimestamp(at, now = Date.now()) {
   const d = new Date(at)
   const day = isoOf(d)

@@ -37,8 +37,8 @@ describe('Home week strip statuses', () => {
   it('marks a missed scheduled day, a trained day, and a skipped day with its icon', () => {
     mountWith({
       workouts: [
-        { id: 'w0', d: '2026-09-07', routineIds: ['A'], entries: [] },
-        { id: 'w1', d: '2026-09-16', routineIds: ['A'], entries: [] },
+        { id: 'w0', d: '2026-09-07', routineIds: ['A'], entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] },
+        { id: 'w1', d: '2026-09-16', routineIds: ['A'], entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] },
       ],
       dayNotes: { '2026-09-18': { tag: 'travel', _ts: 1 } },
     })

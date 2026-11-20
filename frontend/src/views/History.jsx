@@ -13,6 +13,9 @@ import { recoverySessionsOf } from '../lib/recovery-sessions.js'
 import { recoverySheet, RecoveryRow } from '../components/RecoverySheet.jsx'
 import { activitiesOf } from '../lib/activities.js'
 import { ActivityRow } from '../components/ActivitySheet.jsx'
+import { groupByMonth } from '../lib/history-months.js'
+import { monthHeading } from '../lib/format.js'
+import { isNothingLogged } from '../lib/workout-count.js'
 
 // Newest first: every workout, and in between them the days off you left a note on (#261) and the
 // recovery sessions (sauna, ice bath, lib/recovery-sessions.js). A note on a day that has a workout
@@ -54,17 +57,20 @@ export default function History() {
   }, [more, shown])
   return <>
     <div className="hdr"><button className="iconbtn" data-back="/stats" data-tour="history-back" onClick={() => nav('/stats')} aria-label={t('Stats')}><Icon name="chevronLeft" /></button>
-      <div style={{ flex: 1, marginInlineStart: 12 }}><h1>{t('History')}</h1><div className="sub">{tn('{0} workout', '{0} workouts', S.workouts.length)}</div></div>
+      <div style={{ flex: 1, marginInlineStart: 12 }}><h1>{t('History')}</h1><div className="sub">{tn('{0} workout', '{0} workouts', S.workouts.filter(w => !isNothingLogged(w)).length)}</div></div>
       {/* A sauna, an ice bath (components/RecoverySheet.jsx): logged from here, listed below with the workouts. */}
       {rows.length > 0 && <button className="iconbtn" onClick={() => recoverySheet()} aria-label={t('Log recovery')} title={t('Log recovery')} style={{ marginInlineEnd: 8 }}><Icon name="sparkles" /></button>}
       {S.workouts.length > 0 && <button className="iconbtn" onClick={reportSheet} aria-label={t('Performance report')} title={t('Performance report')}><Icon name="note" /></button>}</div>
     {rows.length > 0 && <Button icon="plus" data-tour="history-add" onClick={logPastWorkoutSheet} style={{ marginBottom: 12 }}>{t('Log a past workout')}</Button>}
-    {rows.length ? <><div className="list">{(more ? rows.slice(0, shown) : rows).map((r, i) => r.w
-      ? <WorkoutRow key={r.w.id} w={r.w} tour={i === 0 ? 'history-row' : undefined} onClick={() => workoutDetailSheet(r.w)} />
-      : r.rec ? <RecoveryRow key={'rec-' + r.rec.id} r={r.rec} />
-      : r.act ? <ActivityRow key={'act-' + r.act.id} a={r.act} />
-      : r.felt ? <FeltRow key={'felt-' + r.d} d={r.d} felt={r.felt} />
-      : <DayNoteRow key={'note-' + r.d} iso={r.d} note={r.note} />)}</div>
+    {rows.length ? <>{groupByMonth(more ? rows.slice(0, shown) : rows).map(g => <div key={g.key}>
+      <h4 className="sec">{monthHeading(g.rows[0].d)}</h4>
+      <div className="list">{g.rows.map(r => r.w
+        ? <WorkoutRow key={r.w.id} w={r.w} tour={r === rows[0] ? 'history-row' : undefined} onClick={() => workoutDetailSheet(r.w)} />
+        : r.rec ? <RecoveryRow key={'rec-' + r.rec.id} r={r.rec} />
+        : r.act ? <ActivityRow key={'act-' + r.act.id} a={r.act} />
+        : r.felt ? <FeltRow key={'felt-' + r.d} d={r.d} felt={r.felt} />
+        : <DayNoteRow key={'note-' + r.d} iso={r.d} note={r.note} />)}</div>
+    </div>)}
       {more && <div ref={end} aria-hidden="true" style={{ height: 1 }} />}</>
       : <EmptyState icon="history" text={t('No workouts yet. Your first one will land here.')}>
         <Button variant="tinted" icon="plus" data-tour="history-add" onClick={logPastWorkoutSheet}>{t('Log a past workout')}</Button>

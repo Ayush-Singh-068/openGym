@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
-import { fmtDate, todayISO, uid } from '../lib/format.js'
+import { fmtDate, fmtDateY, todayISO, uid } from '../lib/format.js'
 import { NOTE_MAX } from '../lib/history.js'
 import { tappable, useSheetKeyboard } from '../lib/use-sheet-keyboard.js'
 import {
@@ -79,7 +79,7 @@ export function RecoveryRow({ r, showDate = true }) {
   return <div className="item rec-row" {...tappable(() => recoverySheet({ id: r.id }))}>
     <span className="lrow-i rec-i" aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={RECOVERY_ICON[r.kind]} /></span>
     <div className="grow"><div className="tt">{t(RECOVERY_LABEL[r.kind])}</div>
-      <div className="ss">{[showDate ? fmtDate(r.d, true) : null, t('{0} min', r.min), r.note].filter(Boolean).join(' · ')}</div></div>
+      <div className="ss">{[showDate ? fmtDateY(r.d, true) : null, t('{0} min', r.min), r.note].filter(Boolean).join(' · ')}</div></div>
     <Icon name="chevronRight" className="chev" />
   </div>
 }

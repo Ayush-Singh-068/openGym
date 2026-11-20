@@ -148,6 +148,11 @@ import { dayCheckinSheet, feltLine } from './components/DayCheckinSheet.jsx'
 import { sleepHoursOn } from './lib/vitals.js'
 import DailyCheckin from './components/DailyCheckin.jsx'
 import { exerciseRecords } from './lib/exercise-records.js'
+import { fmtDateY } from './lib/format.js'
+import { isNothingLogged } from './lib/workout-count.js'
+import { isWarmupExerciseIn, withWarmupExercise } from './lib/warmup-exercises.js'
+import { keepOneWeighIn, undoKeepOne } from './lib/weigh-keep-one.js'
+import { discardActiveWorkout } from './lib/discard-workout.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -588,6 +593,13 @@ function WeighIns() {
     .map(w => ({ t: new Date(w.key + 'T12:00:00').getTime(), y: Math.round(w.avg * 100) / 100, d: w.key })), [weeks])
   const n = useMemo(() => allReadings(st.bodyweight).length, [st.bodyweight])
   const mode = dailyModeOf(st)
+  // "Keep one" (lib/weigh-keep-one.js): never by itself; one Undo puts every removed reading back.
+  const keepOne = d => {
+    let undos = []
+    update(s => { undos = keepOneWeighIn(s, d) })
+    if (!undos.length) return
+    ui().toast(t('Kept one weigh-in'), { action: t('Undo'), onAction: () => update(s => { undoKeepOne(s, undos) }) })
+  }
   if (!n) return <>
     <h3>{t('Weigh-ins')}</h3>
     <div className="empty"><div className="ico"><Icon name="scale" /></div>{t('No weigh-ins yet. Log your weight to start the curve.')}</div>
@@ -618,6 +630,10 @@ function WeighIns() {
             <div className="row between bw-day">
               <span className="small muted">{fmtDate(b.d, true)}</span>
               <span className="small dim">{dailyLabel(mode, fmtNum(b.w) + ' ' + st.unit)}</span>
+            </div>
+            <div className="row between bw-keep">
+              <span className="small dim">{tn('{0} weigh-in that day', '{0} weigh-ins that day', rs.length)}</span>
+              <button type="button" className="chip nocap" onClick={() => keepOne(b.d)}>{t('Keep one')}</button>
             </div>
             {rs.map(r => <WeighInRow key={b.d + '|' + r.id} d={b.d} r={r} unit={st.unit} confirm dayShown={false} />)}
           </div>
@@ -2711,6 +2727,9 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const bandsByEq = usesBands({}, ex.id)
   const bandsOn = mode === 'reps' && usesBands(live, ex.id)
   const setBandsOn = on => update(s => { s.bandEx = withBandEx(s.bandEx, ex.id, on, bandsByEq) })
+  // A warm-up exercise (lib/warmup-exercises.js): the exercise's own say, for every slot of it.
+  const warmEx = isWarmupExerciseIn(live, ex.id)
+  const setWarmEx = on => update(s => { s.exWarmup = withWarmupExercise(s.exWarmup, ex.id, on) })
   // What a warm-up rests without one of its own, for its wheel to open on (#735): the profile's,
   // else the work sets' (lib/supersetFlow.js warmupRestSecFor).
   const warmApplies = warmAll !== null ? warmAll : ownExerciseRest(c) ?? st.restSec
@@ -3119,6 +3138,11 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
             : next
         })} />
       </Row>}
+      {/* A warm-up exercise: never counted as work, whatever its sets say. */}
+      <Row icon="sunrise" iconTint="var(--orange)" title={t('Warm-up exercise')}
+        subtitle={t('Band pull-aparts and the like. Left out of records, volume, progression and muscle counts.')}>
+        <Switch checked={warmEx} onChange={setWarmEx} />
+      </Row>
       {/* Resistance bands (Reddit): chips under every set, and the bands each set starts with. */}
       {mode === 'reps' && <Row icon="kettlebell" iconTint="var(--pink)" title={t('Log with bands')}
         subtitle={bandsOn ? t('Each set gets band chips. Pick the ones it starts with below.') : t('Pick the band colour per set, "15 × Red".')}>
@@ -3846,7 +3870,9 @@ export function WorkoutRow({ w, onClick, tour }) {
   return <div className="item" data-tour={tour} {...tappable(onClick)}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyph} /></span>
     <div className="grow"><div className="tt">{w.name}</div>
-      <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), tn('{0} set', '{0} sets', setsDone(w)), fmtVol(sessionVolume(w, st), st.unit)].join(' · ')}</div></div>
+      <div className="ss">{(isNothingLogged(w)
+        ? [fmtDateY(w.d, true), t('Nothing logged')]
+        : [fmtDateY(w.d, true), ...durPart(w.end - w.start), tn('{0} set', '{0} sets', workSetsDone(w)), fmtVol(sessionVolume(w, st), st.unit)]).join(' · ')}</div></div>
     {mediaN > 0 && <span className="wrow-media" title={tn('{0} photo or video', '{0} photos or videos', mediaN)} aria-label={tn('{0} photo or video', '{0} photos or videos', mediaN)}><Icon name="image" />{mediaN}</span>}
     {w.prs && w.prs.length > 0 && <span className="pr"><Icon name="trophy" />{w.prs.length} PR</span>}
     <Icon name="chevronRight" className="chev" />
@@ -3858,7 +3884,7 @@ export function DayNoteRow({ iso, note }) {
   return <div className="item day-note-row" {...tappable(() => dayNoteSheet(iso))}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19, background: 'var(--surface-3)' }}><Icon name={note.tag ? DAY_NOTE_ICON[note.tag] : 'note'} /></span>
     <div className="grow"><div className="tt">{note.tag ? t(DAY_NOTE_LABEL[note.tag]) : t('Day note')}</div>
-      <div className="ss">{[fmtDate(iso, true), note.text].filter(Boolean).join(' · ')}</div></div>
+      <div className="ss">{[fmtDateY(iso, true), note.text].filter(Boolean).join(' · ')}</div></div>
     <Icon name="chevronRight" className="chev" />
   </div>
 }
@@ -3868,7 +3894,7 @@ export function FeltRow({ d, felt }) {
   return <div className="item day-note-row" {...tappable(() => dayCheckinSheet(d))}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19, background: 'var(--surface-3)' }}><Icon name="moon" /></span>
     <div className="grow"><div className="tt">{t('Check-in, no workout')}</div>
-      <div className="ss">{[fmtDate(d, true), feltLine(felt)].filter(Boolean).join(' · ')}</div></div>
+      <div className="ss">{[fmtDateY(d, true), feltLine(felt)].filter(Boolean).join(' · ')}</div></div>
     <Icon name="chevronRight" className="chev" />
   </div>
 }
@@ -4660,7 +4686,7 @@ export function finishWorkout() {
   if (!A) return
   const done = setsDoneActive(A)
   const total = setUnitsTotal(A.entries)
-  if (!done) { confirmSheet({ title: t('Nothing logged yet'), message: t('You haven’t checked off any sets. Finish the workout anyway?'), confirmText: t('Finish anyway'), onConfirm: doFinishWorkout }); return }
+  if (!workSetsDone(A)) { confirmSheet({ title: t('Nothing logged. Discard it instead?'), confirmText: t('Discard'), danger: true, onConfirm: () => { discardActiveWorkout(); nav('/home') }, cancelText: t('Save anyway'), onCancel: doFinishWorkout }); return }
   if (done < total) { confirmSheet({ title: t('Finish early?'), message: tn('{0} set still unchecked. Finish the workout now?', '{0} sets still unchecked. Finish the workout now?', total - done), confirmText: t('Finish workout'), onConfirm: doFinishWorkout }); return }
   doFinishWorkout()
 }
@@ -4674,11 +4700,16 @@ export function finishWorkoutSheet({ onDiscard } = {}) {
   if (!A) return
   const done = setsDoneActive(A)
   const total = setUnitsTotal(A.entries)
+  // Not one work set done: the question is whether to keep an empty workout at all.
+  const noWork = !workSetsDone(A)
   menuSheet({
-    title: !done ? t('Nothing logged yet') : done < total ? t('Finish early?') : t('Finish workout?'),
-    subtitle: !done ? t('You haven’t checked off any sets. Finish the workout anyway?')
+    title: noWork ? t('Nothing logged. Discard it instead?') : done < total ? t('Finish early?') : t('Finish workout?'),
+    subtitle: noWork ? null
       : done < total ? tn('{0} set still unchecked. Finish the workout now?', '{0} sets still unchecked. Finish the workout now?', total - done) : null,
-    sections: [
+    sections: noWork ? [
+      { items: [onDiscard && { icon: 'trash', danger: true, label: t('Discard'), onClick: onDiscard }] },
+      { items: [{ icon: 'flag', label: t('Save anyway'), onClick: doFinishWorkout }] },
+    ] : [
       { items: [{ icon: 'flag', accent: true, label: t('Finish and save'), onClick: doFinishWorkout }] },
       { items: [onDiscard && { icon: 'trash', danger: true, label: t('Discard workout'), onClick: onDiscard }] },
     ],

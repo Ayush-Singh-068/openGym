@@ -1,6 +1,16 @@
 // Indonesian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
   // --- new strings ---
+  "Nothing logged": "Nothing logged",
+  "Nothing logged. Discard it instead?": "Nothing logged. Discard it instead?",
+  "Save anyway": "Save anyway",
+  "{0} weigh-in that day": "{0} weigh-in that day",
+  "{0} weigh-ins that day": "{0} weigh-ins that day",
+  "Keep one": "Keep one",
+  "Kept one weigh-in": "Kept one weigh-in",
+  "Warm-up exercise": "Warm-up exercise",
+  "Band pull-aparts and the like. Left out of records, volume, progression and muscle counts.": "Band pull-aparts and the like. Left out of records, volume, progression and muscle counts.",
+  // --- new strings ---
   "Your records": "Your records",
   "Heaviest weight": "Heaviest weight",
   "Most reps in a set": "Most reps in a set",

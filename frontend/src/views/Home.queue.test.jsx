@@ -32,7 +32,7 @@ const daysFromToday = n => { const d = new Date(todayISO() + 'T12:00:00'); d.set
 const queue = (over = {}) => ({ ids: ['d1', 'd2', 'd3'], since: SINCE, startsOn: daysFromToday(-2), label: 'US W1', ...over })
 const logged = id => {
   const start = SINCE + 3600000
-  return { id: 'w-' + id, d: isoOf(new Date(start)), start, end: start + 3600000, routineIds: [id], routineId: id, name: routines.find(r => r.id === id).name, entries: [] }
+  return { id: 'w-' + id, d: isoOf(new Date(start)), start, end: start + 3600000, routineIds: [id], routineId: id, name: routines.find(r => r.id === id).name, entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] }
 }
 
 let host, root
@@ -203,7 +203,7 @@ describe('Home — coach week progress row', () => {
 
   it('the streak card counts your own day beside the coach week, planned and done', () => {
     const now = Date.now()
-    const core = { id: 'w-own', d: todayISO(), start: now - 3600000, end: now, routineIds: ['own'], routineId: 'own', name: 'Core', entries: [] }
+    const core = { id: 'w-own', d: todayISO(), start: now - 3600000, end: now, routineIds: ['own'], routineId: 'own', name: 'Core', entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] }
     setS({ week: { [new Date().getDay()]: ['own'] }, workouts: [logged('d1'), core] })
     mount()
     expect(card()).toMatch(/^2 \/ 4 this week · 2 workouts total$/)
@@ -212,7 +212,7 @@ describe('Home — coach week progress row', () => {
 
   it('a managed pass counts your own day beside it exactly as an external one does — ownership plays no part in the tally', () => {
     const now = Date.now()
-    const core = { id: 'w-own', d: todayISO(), start: now - 3600000, end: now, routineIds: ['own'], routineId: 'own', name: 'Core', entries: [] }
+    const core = { id: 'w-own', d: todayISO(), start: now - 3600000, end: now, routineIds: ['own'], routineId: 'own', name: 'Core', entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] }
     setS({
       queue: queue({ rotationId: 'r1' }),
       rotation: { id: 'r1', sequence: ['d1', 'd2', 'd3'], label: 'US W1' },
@@ -292,7 +292,7 @@ describe('Home — a session pinned to a day', () => {
 // while the progress row and Start already named the next one for today.
 describe('Home — the today row follows today\'s plan, not just the last session', () => {
   const today = todayISO()
-  const at = (id, start, name) => ({ id: 'w-' + id + start, d: today, start, end: start + 1000, routineIds: id ? [id] : [], routineId: id, name: name || routines.find(r => r.id === id).name, entries: [] })
+  const at = (id, start, name) => ({ id: 'w-' + id + start, d: today, start, end: start + 1000, routineIds: id ? [id] : [], routineId: id, name: name || routines.find(r => r.id === id).name, entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] })
   const tag = () => host.querySelector('.today-row .tag')?.textContent
   // The Start the row used to carry as a tag is the card's own primary button now.
   const startBtn = () => [...host.querySelectorAll('.hero-acts button')].find(b => /^Start/.test(b.textContent.trim()))

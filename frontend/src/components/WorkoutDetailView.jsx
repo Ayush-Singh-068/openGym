@@ -170,6 +170,8 @@ export default function WorkoutDetailView({ w, close }) {
       <div className="ss-label"><Icon name="link" />{t('Superset')}</div>
       {unit.map(i => <ExerciseCard key={i} card={cards[i]} />)}
     </div>)
+  // The "Weight that day" row below says the same number: one of the two is enough.
+  const dayWeightSame = !!header.bodyweight && readingsOf((st.bodyweight || []).find(b => b && b.d === header.dateISO)).some(r => Math.abs(Number(r.w) - Number(header.bodyweight)) < 0.05)
   return <div className="wdv">
     <header className="wdv-head">
       <span className="wdv-icon"><Icon name={glyphOf(routine?.emoji)} /></span>
@@ -181,10 +183,12 @@ export default function WorkoutDetailView({ w, close }) {
     <div className="wdv-stats">
       {header.durationMs >= 60000 && <div className="wdv-stat"><b>{fmtDur(header.durationMs)}</b><span>{t('Duration')}</span></div>}
       <div className="wdv-stat"><b>{fmtVol(header.volume, st.unit)}</b><span>{t('Volume')}</span></div>
-      <div className="wdv-stat"><b>{header.sets}</b><span>{t('Sets')}</span></div>
+      <div className="wdv-stat"><b>{header.workSets}</b><span>{t('Sets')}</span></div>
       {header.prCount > 0 && <div className="wdv-stat pr-tile"><b><Icon name="trophy" />{header.prCount}</b><span>{t('PRs')}</span></div>}
-      {header.bodyweight && <div className="wdv-stat"><b>{fmtWeight(header.bodyweight, st.unit)}</b><span>{t('Body weight')}</span></div>}
+      {header.bodyweight && !dayWeightSame && <div className="wdv-stat"><b>{fmtWeight(header.bodyweight, st.unit)}</b><span>{t('Body weight')}</span></div>}
     </div>
+    {/* Under the numbers, on a line of its own: a wider Sets tile squeezed the Volume tile onto two lines. */}
+    {header.warmSets > 0 && <div className="wdv-warm">{tn('+{0} warm-up set', '+{0} warm-up sets', header.warmSets)}</div>}
     {/* What the day said besides the workout: the check-in and the weight, a tap from changing or deleting. */}
     <DayRows d={header.dateISO} />
     {/* Ended by itself (lib/forgotten-workout.js): said so, with Reopen for 24 hours. */}

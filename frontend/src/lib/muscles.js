@@ -18,6 +18,7 @@ import { EXIDX, smOf, isBuiltinEx } from './exercises.js'
 import { todayISO, weekKey, MONDAY } from './format.js'
 import { queueOf } from './queue.js'
 import { workoutAt } from './history.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 // The muscles a map can shade, in head-to-toe order — also the order of any list
 // built from them, so "what am I neglecting" reads top-down like a body.
@@ -320,7 +321,7 @@ export function loadOf(items) {
   const load = {}
   items.forEach(item => {
     const { id, sets } = item || {}
-    if (!sets) return
+    if (!sets || isWarmupExercise(id)) return
     const historical = item.ex || item.exercise
     const source = historical?.muscleWeights ? historical : (EXIDX[id] || historical || item)
     const m = musclesOf(source)

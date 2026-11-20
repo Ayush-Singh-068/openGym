@@ -726,7 +726,8 @@ const OWN_MERGE = new Set([
 // `modules` (lib/modules.js): one switch per feature area, so Body off on the phone and Seasonal off
 // on the laptop both hold.
 // bandEx (lib/bands.js): which exercises use bands, per exercise like exNotes.
-const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights', 'exAliases', 'exShownName', 'programmes', 'modules', 'bandEx'])
+// exWarmup (lib/warmup-exercises.js): which exercises are warm-up exercises, the same way.
+const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights', 'exAliases', 'exShownName', 'programmes', 'modules', 'bandEx', 'exWarmup'])
 // The order of the routines, as the list shows them, is a choice of its own (`edited.routineOrder`):
 // a reorder on one device was lost to the other's whole copy whenever that one was newer.
 export const ORDER_KEY = 'routineOrder'
@@ -954,7 +955,7 @@ export function mergeStates(a0, b0, { prefer } = {}) {
     if (kept) out.exWeights[id] = clone(kept)
     else delete out.exWeights[id]
   }
-  for (const f of ['exNotes', 'barWeights', 'exAliases', 'exShownName', 'programmes', 'modules']) {
+  for (const f of ['exNotes', 'barWeights', 'exAliases', 'exShownName', 'programmes', 'modules', 'exWarmup']) {
     if (n[f] || o[f]) out[f] = clone({ ...(o[f] || {}), ...(n[f] || {}) })
   }
   // The plate-loading choices (lib/plates.js) are stamped the same way: an exercise's loading and

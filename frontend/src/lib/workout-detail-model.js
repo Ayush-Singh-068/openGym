@@ -16,6 +16,7 @@ import { glyphOf } from './glyphs.js'
 import { entryDbLoad } from './dumbbells.js'
 import { speedUnitOf } from './speed.js'
 import { hrLabel } from './heart-rate.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 const num = v => Number(v) || 0
 // Rounds to two decimals, so a float sum does not print as 2.4000000000000004.
@@ -27,7 +28,7 @@ const sign = n => Math.sign(n) || 0
 const workRowsOf = entry => (Array.isArray(entry?.sets) ? entry.sets : []).filter(s => hasCompletedWork(s) && !isWarmupRow(s))
 
 // Sets of an entry in the units the sets header counts: a per-side row is two.
-const workSetsOf = entry => workRowsOf(entry).reduce((n, s) => n + setUnits(s), 0)
+const workSetsOf = entry => (isWarmupExercise(entry?.id) ? 0 : workRowsOf(entry).reduce((n, s) => n + setUnits(s), 0))
 
 // The row's own record without its effort, so the label does not print "(RIR 2)": the effort has
 // a column of its own. The sides of a per-side row are cleared the same way.
@@ -51,6 +52,10 @@ export function headerOf(S, w) {
     volume: sessionVolume(w, S),
     sets: Array.isArray(w.entries) ? setsDone(w) : 0,
     workSets: entries.reduce((n, e) => n + workSetsOf(e), 0),
+    // Done warm-up sets only (rows marked as warm-up). The sets of a warm-up exercise are neither work
+    // nor warm-up sets, so they are not counted here either (lib/warmup-exercises.js).
+    warmSets: entries.reduce((n, e) => n + (isWarmupExercise(e?.id) ? 0 : (Array.isArray(e?.sets) ? e.sets : [])
+      .filter(s => isWarmupRow(s) && hasCompletedWork(s)).reduce((m, s) => m + setUnits(s), 0)), 0),
     prCount: (w.prs || []).length,
     bodyweight: w.bw || null,
     unit: S.unit,

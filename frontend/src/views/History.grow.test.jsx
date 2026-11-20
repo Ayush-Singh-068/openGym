@@ -21,7 +21,7 @@ const reachEnd = () => act(() => { for (const o of [...observers]) o.cb(o.els.ma
 const day = i => new Date(Date.UTC(2025, 0, 1) + i * 864e5).toISOString().slice(0, 10)
 function install(n) {
   const st = clone(DEF)
-  const workouts = Array.from({ length: n }, (_, i) => ({ id: 'w' + i, d: day(i), start: Date.parse(day(i) + 'T10:00:00Z'), end: Date.parse(day(i) + 'T11:00:00Z'), name: 'Push ' + i, entries: [], prs: [] }))
+  const workouts = Array.from({ length: n }, (_, i) => ({ id: 'w' + i, d: day(i), start: Date.parse(day(i) + 'T10:00:00Z'), end: Date.parse(day(i) + 'T11:00:00Z'), name: 'Push ' + i, entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }], prs: [] }))
   Object.assign(st, { routines: [], week: {}, dayPlan: {}, active: null, workouts, weighIn: false })
   useStore.setState({ S: st, user: null })
 }
@@ -64,7 +64,8 @@ describe('History grows as it is scrolled', () => {
     expect(rows(host)).toBe(150)
     // all there: nothing left to observe
     expect(observers).toHaveLength(0)
-    expect(host.querySelector('.list .item:last-child .tt').textContent).toBe('Push 0')
+    // the list is in months now: the oldest row ends the last of them
+    expect([...host.querySelectorAll('.list .item:last-child .tt')].at(-1).textContent).toBe('Push 0')
   })
 
   it('coming back renders as many rows as before (so the scroll position can be restored)', async () => {

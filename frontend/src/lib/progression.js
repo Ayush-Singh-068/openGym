@@ -25,6 +25,7 @@ import { gymSplitView } from './gym-split.js'
 import { isPyramid } from './pyramid.js'
 import { backoffAt } from './backoff.js'
 import { ownedWeightsFor, ownedKindFor, ownedUp, ownedDeload, ownedAround } from './dumbbells.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 export const POLICIES = ['off', 'linear', 'greyskull', 'double', 'steady', 'triple', 'undulating', 'density', 'ladder', 'time']
 
@@ -371,6 +372,7 @@ export function sessionsFor(S, exId, fallback, rid) {
 
 function sessionsIn(S, exId, fallback, rid) {
   const out = []
+  if (isWarmupExercise(exId)) return out
   ;(S.workouts || []).forEach(w => {
     const entry = (w.entries || []).find(e => e && e.id === exId && (!rid || entryRoutineId(w, e) === rid))
     if (!entry) return

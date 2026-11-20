@@ -22,6 +22,7 @@ import { isAssisted, beatsWeight } from './exercises.js'
 import { estimate1RM, best1RM, weightedEstimate, FORMULAS, DEFAULT_FORMULA, REP_CAP } from './onerm.js'
 import { historyAs } from './dumbbells.js'
 import { t, tn } from './i18n.js'
+import { isWarmupExercise } from './warmup-exercises.js'
 
 export const RECORD_KINDS = ['weight', 'reps', 'e1rm', 'volume']
 
@@ -141,7 +142,7 @@ function fold(base, set, formula) {
 export function entryRecords(entry, base, formula = DEFAULT_FORMULA) {
   const rows = entry?.sets || []
   const out = rows.map(() => [])
-  if (!base?.any) return out
+  if (!base?.any || isWarmupExercise(entry?.id)) return out
   let running = base
   rows.forEach((row, i) => {
     if (!row || isWarmupRow(row)) return

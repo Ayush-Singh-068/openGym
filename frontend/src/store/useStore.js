@@ -37,6 +37,7 @@ import { DEFAULT_TEMPLATE_ID } from '../lib/structuralBalanceTemplates.js'
 import { WC_DEFAULT } from '../lib/workout-controls.js'
 import { sanitizeAccent, NEW_ACCENT } from '../lib/accent.js'
 import { registerExerciseAliases } from '../lib/exercise-aliases.js'
+import { registerWarmupExercises } from '../lib/warmup-exercises.js'
 
 const KEY = 'gym_state_v1'
 // Where the saved copy stands with the server: the revision it descends from, and its own `_ts`
@@ -739,6 +740,7 @@ export const useStore = create((set, get) => {
     S.customEx = healCustomEx(S.customEx)
     registerCustom(S.customEx)
     registerExerciseAliases(S.exAliases, S.exShownName)
+    registerWarmupExercises(S.exWarmup)
     // A refused write used to take the change with it — Finish looked like it simply did
     // nothing. The copy is kept in memory either way and marked as owed to the server, so a
     // signed-in device still gets it there; and it is said out loud once, because a change that
@@ -1049,6 +1051,7 @@ export const useStore = create((set, get) => {
     meta.set(S, { base: readStoredSync(), owed: storedOwed() })
     registerCustom(S.customEx)
     registerExerciseAliases(S.exAliases, S.exShownName)
+    registerWarmupExercises(S.exWarmup)
     set({ S })
     followSignIn()
     return true
@@ -1097,6 +1100,7 @@ export const useStore = create((set, get) => {
       meta.set(merged, { base: readStoredSync(), owed: storedOwed() })
       registerCustom(merged.customEx)
       registerExerciseAliases(merged.exAliases, merged.exShownName)
+      registerWarmupExercises(merged.exWarmup)
       set({ S: merged })
       return
     }
@@ -1522,6 +1526,7 @@ export const useStore = create((set, get) => {
   S0.customEx = healCustomEx(S0.customEx)
   registerCustom(S0.customEx)
   registerExerciseAliases(S0.exAliases, S0.exShownName)
+  registerWarmupExercises(S0.exWarmup)
   // Which photos and videos are still waiting for the server, known before the first sign-out
   // check has to ask (lib/media-owed.js). A copy without any leaves the media store unopened.
   if (keptHashes(S0).size) loadPending()

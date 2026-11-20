@@ -35,7 +35,7 @@ describe('workouts left this week on Home (#753)', () => {
     expect(line()).toBe('4 of 4 left this week')
   })
   it('says so when the week is done', () => {
-    mountWith({ week: { 1: ['A'] }, workouts: [{ id: 'w', d: todayISO(), start: Date.now(), name: 'Push', routineIds: ['A'], entries: [] }] })
+    mountWith({ week: { 1: ['A'] }, workouts: [{ id: 'w', d: todayISO(), start: Date.now(), name: 'Push', routineIds: ['A'], entries: [{ id: '0025', sets: [{ w: 60, r: 5, done: true }] }] }] })
     expect(line()).toBe('All done this week. Nice.')
   })
   it('says nothing without a plan', () => {

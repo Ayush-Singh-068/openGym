@@ -122,11 +122,24 @@ describe('the Finish sheet', () => {
     expect(S().active).not.toBeNull()
   })
 
-  it('nothing checked: says so', () => {
+  it('nothing logged: asks to discard it instead, or to save anyway', () => {
     install([{ w: 40, r: 5 }])
-    act(() => finishWorkoutSheet({ onDiscard: vi.fn() }))
+    const onDiscard = vi.fn()
+    act(() => finishWorkoutSheet({ onDiscard }))
     const host = sheetText()
-    expect(host.querySelector('h3').textContent).toBe('Nothing logged yet')
-    expect(host.textContent).toContain('You haven’t checked off any sets.')
+    expect(host.querySelector('h3').textContent).toBe('Nothing logged. Discard it instead?')
+    expect([...host.querySelectorAll('.menu-item .tt')].map(e => e.textContent)).toEqual(['Discard', 'Save anyway'])
+    tapItem(host, 'Discard')
+    expect(onDiscard).toHaveBeenCalledOnce()
+    expect(S().active).not.toBeNull()
+  })
+
+  // The header's Finish with nothing checked goes through finishWorkout's confirm, not the pill's sheet.
+  it('nothing logged, from the header Finish: the same question as a dialog', () => {
+    install([{ w: 40, r: 5 }])
+    act(() => finishWorkout())
+    const host = sheetText()
+    expect(host.querySelector('h3').textContent).toBe('Nothing logged. Discard it instead?')
+    expect([...host.querySelectorAll('button')].map(b => b.textContent.trim())).toEqual(expect.arrayContaining(['Discard', 'Save anyway']))
   })
 })

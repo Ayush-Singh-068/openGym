@@ -1019,6 +1019,7 @@ body.chips-dragging *{cursor:inherit}
 .bw-when-btn{background:none;border:0;padding:4px 0;font:inherit;color:inherit;text-align:start;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-width:0}
 .bw-src{font-size:var(--fs-caption2);color:var(--pink)}
 .bw-day{padding:10px 2px 2px}
+.bw-keep{padding:2px 2px 6px;align-items:center}
 .measure-form{display:grid;grid-template-columns:1fr 1fr;gap:11px 10px}
 .measure-field{min-width:0}
 .measure-input{height:47px;background:var(--surface-2);border-radius:var(--r);display:flex;align-items:center;padding:0 12px;gap:6px}

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
-import { fmtDate, fmtNum, todayISO, uid } from '../lib/format.js'
+import { fmtDate, fmtDateY, fmtNum, todayISO, uid } from '../lib/format.js'
 import { NOTE_MAX } from '../lib/history.js'
 import { tappable, useSheetKeyboard } from '../lib/use-sheet-keyboard.js'
 import { SPORTS, SPORT_LABEL, SPORT_ICON, SPORT_PRESETS, ACTIVITY_MIN_MAX, activitiesOf, withActivity, activityName } from '../lib/activities.js'
@@ -86,7 +86,7 @@ export function ActivityRow({ a, showDate = true }) {
   return <div className="item act-row" data-activity={a.id} {...tappable(() => activitySheet({ id: a.id }))}>
     <span className="lrow-i act-i" aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={SPORT_ICON[a.sport] || 'flag'} /></span>
     <div className="grow"><div className="tt">{activityName(a, t)}</div>
-      <div className="ss">{[showDate ? fmtDate(a.d, true) : null, t('{0} min', a.min), a.km ? distText(S, a.km) : null, a.note].filter(Boolean).join(' · ')}</div></div>
+      <div className="ss">{[showDate ? fmtDateY(a.d, true) : null, t('{0} min', a.min), a.km ? distText(S, a.km) : null, a.note].filter(Boolean).join(' · ')}</div></div>
     <Icon name="chevronRight" className="chev" />
   </div>
 }
