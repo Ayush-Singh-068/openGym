@@ -1,5 +1,22 @@
 // Swedish UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  // --- new strings ---
+  "Your records": "Your records",
+  "Heaviest weight": "Heaviest weight",
+  "Most reps in a set": "Most reps in a set",
+  "Most in one session": "Most in one session",
+  "Record": "Record",
+  "since {0}": "since {0}",
+  "Heaviest set each session": "Heaviest set each session",
+  "Best each session": "Best each session",
+  "The chart starts after your second session.": "The chart starts after your second session.",
+  "Up {0} since {1}.": "Up {0} since {1}.",
+  "Down {0} since {1}.": "Down {0} since {1}.",
+  "Same as on {0}.": "Same as on {0}.",
+  "Note:": "Note:",
+  "+{0} warm-up set": "+{0} warm-up set",
+  "+{0} warm-up sets": "+{0} warm-up sets",
+  "Show older ({0} more)": "Show older ({0} more)",
   // --- Phase 1b step 2: effort aim, back to the suggestion, adaptive rest ---
   "Aim: a couple of reps to spare": "Aim: a couple of reps to spare",
   "Aim: one or two reps to spare": "Aim: one or two reps to spare",

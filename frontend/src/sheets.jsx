@@ -147,6 +147,7 @@ import { commitStaged, weightOn } from './lib/day-answers.js'
 import { dayCheckinSheet, feltLine } from './components/DayCheckinSheet.jsx'
 import { sleepHoursOn } from './lib/vitals.js'
 import DailyCheckin from './components/DailyCheckin.jsx'
+import { exerciseRecords } from './lib/exercise-records.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -1718,6 +1719,7 @@ function ExerciseHistory({ exId }) {
   const ex = exOr(exId)
   const h = useMemo(() => exerciseHistory(st, exId), [st.workouts, exId, st.volumeWarmups])
   const [curve, setCurve] = useState('top')
+  const [olderShown, setOlderShown] = useState(false)
   // Against body weight, as in Stats: the estimated 1RM (body weight included for bodyweight and
   // assisted work) as a % of the body weight then. Only for rep work, and only once two sessions
   // have a body weight to compare with.
@@ -1763,39 +1765,55 @@ function ExerciseHistory({ exId }) {
     s.volume > 0 && t('Volume') + ' ' + fmtVol(s.volume, st.unit),
     s.e1rm != null && t('Est. 1RM') + ' ' + fmtNum(s.e1rm) + ' ' + st.unit,
   ].filter(Boolean).join(' · ')
+  const allH = exerciseHistory(st, exId, { limit: Number.MAX_SAFE_INTEGER })
+  const recs = exerciseRecords(allH)
+  const shownSessions = olderShown ? allH.sessions : allH.sessions.slice(0, 10)
+  const delta = h.points.length >= 2 ? h.points[h.points.length - 1].y - h.points[0].y : 0
   return <>
     <h3 className={exerciseNameClass(ex)} style={{ marginBottom: 2 }}>{exerciseNameFor(ex)}</h3>
-    <div className="muted small" style={{ marginBottom: 10 }}>{t('Exercise history')} · {tn('{0} session', '{0} sessions', h.total)}</div>
-    {/* Only reps work with a load produces an estimate, so the toggle is absent for the rest. */}
+    <div className="muted small" style={{ marginBottom: 10 }}>{tn('{0} session', '{0} sessions', recs.count)} · {t('since {0}', fmtDate(recs.firstD, true, true))}</div>
     {places.length > 1 && <div className="chips" style={{ marginBottom: 8 }}>
       <button type="button" className={'chip nocap' + (!placeOn ? ' on' : '')} aria-pressed={!placeOn} onClick={() => setPlace('')}>{t('All gyms')}</button>
       {places.map(p => <button key={p.key} type="button" className={'chip nocap' + (placeOn === p.key ? ' on' : '')} aria-pressed={placeOn === p.key} onClick={() => setPlace(p.key)}>
         <Icon name="mapPin" />{p.label || t('My gym')}</button>)}
     </div>}
-    {curveOpts.length > 1 && <Segmented className="seg-range" value={onRel ? 'bodyweight' : onE1 ? 'e1rm' : 'top'} onChange={setCurve} options={curveOpts} />}
-    <div className="chart" style={{ marginTop: 8 }}>
-      <LineChart points={onRel ? rel : onE1 ? h.e1rmPoints : h.points} h={140} unit={onRel ? '% BW' : onE1 ? st.unit : unit} color="var(--blue)" />
-    </div>
-    <div className="small row" style={{ margin: '6px 0 4px', gap: 5 }}>
-      <Icon name="trophy" style={{ fontSize: 14, color: 'var(--gold-ink)' }} />
-      {t('Best:')} <b className="accent">{onRel ? fmtNum(relBest) + ' % BW' : fmtNum(onE1 ? e1Best : h.best) + ' ' + (onE1 ? st.unit : unit)}</b>
-    </div>
-    {onRel && <div className="small dim">{relTop ? t('Heaviest set as a share of body weight, per workout') : t('Estimated 1RM as a share of body weight, per workout')}</div>}
-    {repTable.length > 0 && <RepRecords rows={repTable} unit={st.unit} assisted={isAssisted(exId)} />}
-    <FormVideosSection exId={exId} />
-    <h4 className="sec">{h.sessions.length < h.total ? t('Last {0} sessions', h.sessions.length) : t('Sessions')}</h4>
+    <h4 className="sec">{t('Your records')}</h4>
     <div className="list">
-      {h.sessions.map(s => <div key={s.id} className="item" style={{ alignItems: 'flex-start' }}>
+      {recs.heavy && <RecordRow label={t('Heaviest weight')} value={fmtNum(recs.heavy.w) + ' ' + st.unit + ' × ' + recs.heavy.r} d={recs.heavy.d} isNew={recs.heavy.sid === recs.latestId} />}
+      {recs.most && !(recs.heavy && recs.most.sid === recs.heavy.sid && recs.most.w === recs.heavy.w && recs.most.r === recs.heavy.r) && <RecordRow label={t('Most reps in a set')} value={recs.most.r + ' ' + t('reps') + (recs.most.w > 0 ? ' × ' + fmtNum(recs.most.w) + ' ' + st.unit : '')} d={recs.most.d} isNew={recs.most.sid === recs.latestId} />}
+      {recs.inSession && <RecordRow label={t('Most in one session')} value={recs.metric === 'weight' ? tn('{0} set', '{0} sets', recs.inSession.n) + ' · ' + fmtVol(recs.inSession.v, st.unit) : recs.metric === 'reps' ? tn('{0} set', '{0} sets', recs.inSession.n) + ' · ' + recs.inSession.v + ' ' + t('reps') : fmtNum(recs.inSession.v) + ' ' + unit} d={recs.inSession.d} isNew={recs.inSession.sid === recs.latestId} />}
+    </div>
+    <div className="small dim" style={{ marginTop: 10 }}>{h.metric === 'weight' ? t('Heaviest set each session') : t('Best each session')}</div>
+    <div className="chart" style={{ marginTop: 4 }}>
+      <LineChart points={h.points} h={140} unit={unit} color="var(--blue)" />
+    </div>
+    <div className="small dim">{h.points.length < 2 ? t('The chart starts after your second session.') : delta > 0 ? t('Up {0} since {1}.', fmtNum(delta) + ' ' + unit, fmtDate(h.points[0].d, true, true)) : delta < 0 ? t('Down {0} since {1}.', fmtNum(-delta) + ' ' + unit, fmtDate(h.points[0].d, true, true)) : t('Same as on {0}.', fmtDate(h.points[0].d, true, true))}</div>
+    <FormVideosSection exId={exId} />
+    <h4 className="sec">{t('Sessions')}</h4>
+    <div className="list">
+      {shownSessions.map(s => <div key={s.id} className="item" style={{ alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => { const w = st.workouts.find(x => x.id === s.id); if (w) workoutDetailSheet(w) }}>
         <div className="grow">
-          <div className="tt">{fmtDate(s.d, true)} {s.pr && <span className="pr"><Icon name="trophy" />PR</span>}</div>
-          <div className="ss">{(recs => s.sets.map((x, j) => <Fragment key={j}>{j > 0 && '  ·  '}{setLabel(exId, x, s.target, speedUnitOf(st))}{recs[j]?.length > 0 && <RecordBadge kinds={recs[j]} assisted={isAssisted(exId)} />}</Fragment>))(recsOf(s))}</div>
-          {tail(s) && <div className="small dim" style={{ marginTop: 3 }}>{tail(s)}</div>}
+          <div className="tt">{fmtDate(s.d, true, true)} · {s.name || t('Workout')}{s.id === recs.heavy?.sid && <span className="pr" style={{ marginInlineStart: 6 }}>{t('Record')}</span>}</div>
+          <div className="ss">{s.sets.map(x => setLabel(exId, x, s.target, speedUnitOf(st))).join('  ·  ')}</div>
+          {s.warmups > 0 && <div className="small dim">{tn('+{0} warm-up set', '+{0} warm-up sets', s.warmups)}</div>}
+          {s.note && <div className="small dim">{t('Note:')} {s.note}</div>}
         </div>
-        {s.value != null && s.value > 0 && <b className="accent nocap" style={{ whiteSpace: 'nowrap' }}>{fmtNum(s.value)} {unit}</b>}
       </div>)}
     </div>
+    {!olderShown && allH.sessions.length > 10 && <button type="button" className="chip nocap" style={{ marginTop: 8 }} onClick={() => setOlderShown(true)}>{t('Show older ({0} more)', allH.sessions.length - 10)}</button>}
   </>
 }
+// One line of "Your records": the label, the value, its date, and "New" when it was set in the latest session.
+function RecordRow({ label, value, d, isNew }) {
+  return <div className="item">
+    <div className="grow">
+      <div className="tt">{label}{isNew && <span className="pr" style={{ marginInlineStart: 6 }}>{t('New')}</span>}</div>
+      <div className="ss">{value}</div>
+    </div>
+    <span className="small dim" style={{ whiteSpace: 'nowrap' }}>{fmtDate(d, true, true)}</span>
+  </div>
+}
+
 // The rep-record table of the history sheet. Rows with nothing logged and nothing estimated stay
 // out; "possible" is shown only where it is more than what you have done.
 function RepRecords({ rows, unit, assisted }) {

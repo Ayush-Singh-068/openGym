@@ -32,6 +32,12 @@ const session = (i, rows) => ({
   entries: [{ id: EX, target: { mode: 'reps', bodyweight: false }, sets: rows }],
 })
 
+// The rows of the Sessions list. The "Your records" rows above it are .item too, so they are not counted.
+const sessionRows = host => {
+  const head = [...host.querySelectorAll('h4.sec')].find(h => h.textContent === 'Sessions')
+  return head ? [...head.nextElementSibling.querySelectorAll('.item')] : []
+}
+
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   useUI.setState({ sheets: [], toastMsg: '' })
@@ -51,7 +57,7 @@ describe('exercise history sheet', () => {
     expect(host.querySelector('.chart')).toBeNull()
   })
 
-  it('lists sessions newest first with labelled sets, volume and one PR marker', () => {
+  it('lists sessions newest first with labelled sets and one PR marker', () => {
     useStore.setState(s => ({ S: { ...s.S, workouts: [
       session(0, [{ w: 40, r: 8, done: true, phase: 'warmup' }, { w: 60, r: 5, done: true }, { w: 60, r: 5, done: true }]),
       session(2, [{ w: 70, r: 5, done: true }]),
@@ -59,73 +65,28 @@ describe('exercise history sheet', () => {
     ] } }))
     exerciseHistorySheet(EX)
     const host = renderTop()
-    const rows = [...host.querySelectorAll('.list .item')]
+    const rows = sessionRows(host)
     expect(rows).toHaveLength(3)
     // newest first, oldest last; the warm-up and the unfinished set never show up
     expect(rows[0].querySelector('.ss').textContent).toBe('70×3')
     expect(rows[2].querySelector('.ss').textContent).toBe('60×5  ·  60×5')
-    expect(rows[2].textContent).toContain('Volume 600 kg')
+    expect(rows[2].textContent).toContain('+1 warm-up set')
     // the record was set in the middle session and only that one carries the badge
     expect(rows.map(r => !!r.querySelector('.pr'))).toEqual([false, true, false])
     expect(host.querySelector('.chart svg')).toBeTruthy()
-    expect(host.textContent).toContain('Best:')
     expect(host.textContent).toContain('70 kg')
+    expect(host.textContent).not.toContain('Best:')
   })
 
-  it('offers a Bodyweight curve only with two sessions that have a body weight, and Best becomes a percentage', () => {
+  it('has no Bodyweight curve or switch, and no % BW line, even with body weight logged', () => {
     const rel = (i, w, bw) => ({ ...session(i, [{ w, r: 5, done: true }]), bw })
-    useStore.setState(s => ({ S: { ...s.S, bodyweight: [], workouts: [session(0, [{ w: 60, r: 5, done: true }]), session(2, [{ w: 70, r: 5, done: true }])] } }))
-    exerciseHistorySheet(EX)
-    const none = renderTop()
-    expect([...none.querySelectorAll('.seg button')].map(b => b.textContent)).not.toContain('Bodyweight')
-
-    useUI.setState({ sheets: [] })
     useStore.setState(s => ({ S: { ...s.S, workouts: [rel(0, 60, 80), rel(2, 80, 80)] } }))
     exerciseHistorySheet(EX)
     const host = renderTop()
-    const btn = [...host.querySelectorAll('.seg button')].find(b => b.textContent === 'Bodyweight')
-    expect(btn).toBeTruthy()
-    act(() => { btn.click() })
-    expect(host.textContent).toMatch(/Best:\s*\d+(\.\d+)? % BW/)
-    expect(host.textContent).toContain('Estimated 1RM as a share of body weight, per workout')
-  })
-
-  it('gives a bare bodyweight exercise a Max reps / Bodyweight toggle, counting body weight as the load', () => {
-    const bare = (i, r) => ({ ...session(i, [{ w: 0, r, done: true }]), bw: 80,
-      entries: [{ id: EX, target: { mode: 'reps', bodyweight: true }, sets: [{ w: 0, r, done: true }] }] })
-    useStore.setState(s => ({ S: { ...s.S, bodyweight: [], workouts: [bare(0, 5), bare(2, 10)] } }))
-    exerciseHistorySheet(EX)
-    const host = renderTop()
-    expect([...host.querySelectorAll('.seg button')].map(b => b.textContent)).toEqual(['Max reps', 'Bodyweight'])
-    act(() => { [...host.querySelectorAll('.seg button')].find(b => b.textContent === 'Bodyweight').click() })
-    // 80 kg moved for 10 reps estimates above body weight, so the best is over 100 % BW.
-    const best = Number(host.textContent.match(/Best:\s*([\d.]+) % BW/)?.[1])
-    expect(best).toBeGreaterThan(100)
-  })
-
-  it('on an assisted machine, less help reads as a higher percentage of body weight', () => {
-    const AS = '1431'
-    const at = (i, help) => ({ ...session(i, []), bw: 80, entries: [{ id: AS, target: { mode: 'reps' }, sets: [{ w: help, r: 5, done: true }] }] })
-    useStore.setState(s => ({ S: { ...s.S, bodyweight: [], workouts: [at(0, 30), at(2, 10)] } }))
-    exerciseHistorySheet(AS)
-    const host = renderTop()
-    act(() => { [...host.querySelectorAll('.seg button')].find(b => b.textContent === 'Bodyweight').click() })
-    const best = Number(host.textContent.match(/Best:\s*([\d.]+) % BW/)?.[1])
-    // The heaviest set, not an extrapolated 1RM: 70 of 80 kg is 87.5 %, so it can never pass 100.
-    expect(best).toBeCloseTo(87.5, 1)
-    expect(host.textContent).toContain('Heaviest set as a share of body weight, per workout')
-  })
-
-  it('keeps a Bodyweight curve for high-rep work the 1RM estimate refuses, following the heaviest set', () => {
-    // 20 reps is above the estimate's cap, so there is no Est. 1RM; leg press and calf raises live here.
-    const high = (i, w) => ({ ...session(i, [{ w, r: 20, done: true }]), bw: 80 })
-    useStore.setState(s => ({ S: { ...s.S, bodyweight: [], workouts: [high(0, 100), high(2, 120)] } }))
-    exerciseHistorySheet(EX)
-    const host = renderTop()
-    expect([...host.querySelectorAll('.seg button')].map(b => b.textContent)).toEqual(['Top set', 'Bodyweight'])
-    act(() => { [...host.querySelectorAll('.seg button')].find(b => b.textContent === 'Bodyweight').click() })
-    expect(Number(host.textContent.match(/Best:\s*([\d.]+) % BW/)?.[1])).toBeCloseTo(150, 1)
-    expect(host.textContent).toContain('Heaviest set as a share of body weight, per workout')
+    expect(host.querySelectorAll('.seg button')).toHaveLength(0)
+    expect(host.textContent).not.toMatch(/% BW/)
+    expect(host.textContent).not.toContain('Bodyweight')
+    expect(host.textContent).not.toContain('Est. 1RM')
   })
 
   it('is reachable from the exercise detail sheet once there is history', () => {
@@ -142,26 +103,28 @@ describe('exercise history sheet', () => {
     act(() => { btn.click() })
     expect(useUI.getState().sheets).toHaveLength(2)
     const top = renderTop()
-    expect(top.querySelectorAll('.list .item')).toHaveLength(1)
+    expect(sessionRows(top)).toHaveLength(1)
+    // one session is not a curve yet
+    expect(top.textContent).toContain('The chart starts after your second session.')
   })
 
-  it('shows the rep-record table with what the best e1RM says is possible, and trophies on record sets', () => {
+  it('shows Your records with the heaviest set and its date, marked New in the latest session', () => {
     useStore.setState(s => ({ S: { ...s.S, workouts: [
       session(0, [{ w: 60, r: 5, done: true }]),
       session(2, [{ w: 70, r: 5, done: true }, { w: 50, r: 10, done: true }]),
     ] } }))
     exerciseHistorySheet(EX)
     const host = renderTop()
-    const rows = [...host.querySelectorAll('.reptable tbody tr')]
-    expect(rows).toHaveLength(12)
-    expect(rows[0].querySelector('th').textContent).toBe('1')
-    expect(rows[4].textContent).toContain('70 kg')
-    expect(rows[9].textContent).toContain('50 kg')
-    // 11 reps: nothing done, but 70 × 5 says possible.
-    expect(rows[10].textContent).toMatch(/11 × [\d.]+ kg/)
-    // The newer session beat the older one's load: its first set wears the trophy.
-    const marks = host.querySelectorAll('.list .setrec-mark')
-    expect(marks.length).toBeGreaterThan(0)
-    expect(marks[0].getAttribute('aria-label')).toContain('Heaviest yet')
+    expect(host.textContent).toContain('Your records')
+    expect(host.textContent).toContain('Heaviest weight')
+    expect(host.textContent).toContain('70 kg × 5')
+    expect(host.textContent).toContain('Most reps in a set')
+    expect(host.textContent).toContain('10 reps × 50 kg')
+    // the heaviest set was set in the latest session, so its row carries New
+    const heavy = [...host.querySelectorAll('.list .item')].find(r => r.textContent.includes('Heaviest weight'))
+    expect(heavy.querySelector('.pr')).toBeTruthy()
+    expect(sessionRows(host)).toHaveLength(2)
+    // the heaviest set each session went from 60 to 70
+    expect(host.textContent).toContain('Up 10 kg since')
   })
 })

@@ -47,7 +47,7 @@ export function exerciseHistory(S, exId, { limit = HISTORY_SESSIONS } = {}) {
     // Its done warm-ups, only ever added to the session's volume and only when the profile
     // counts them (#719): the sets, the best and the curve stay work sets.
     const warm = countsWarmups(S) ? sameMode.flatMap(item => (item.entry.sets || []).filter(isWarmupRow)) : []
-    if (rows.length) logged.push({ w, en, mode, rows, warm })
+    if (rows.length) logged.push({ w, en, mode, rows, warm, warmN: sameMode.flatMap(item => (item.entry.sets || []).filter(x => isWarmupRow(x) && x.done)).length })
   })
   logged.sort((a, b) => workoutAt(a.w) - workoutAt(b.w))
 
@@ -67,7 +67,7 @@ export function exerciseHistory(S, exId, { limit = HISTORY_SESSIONS } = {}) {
 
   let best = 0, prId = null
   const sessions = [], points = [], e1rmPoints = []
-  logged.forEach(({ w, en, mode: m, rows, warm }) => {
+  logged.forEach(({ w, en, mode: m, rows, warm, warmN }) => {
     const same = m === mode
     const value = same ? valueOf({ en, rows }) : null
     const e1rm = m === 'reps' ? (bestSetOf(en)?.est ?? null) : null
@@ -78,7 +78,7 @@ export function exerciseHistory(S, exId, { limit = HISTORY_SESSIONS } = {}) {
     if (value != null && value > 0) points.push({ t, d: w.d, y: value, e1rm })
     if (e1rm != null) e1rmPoints.push({ t, d: w.d, y: e1rm })
     sessions.push({
-      id: w.id, d: w.d, t, mode: m, target: en.target || null, sets: rows, value, e1rm,
+      id: w.id, d: w.d, t, name: w.name || '', note: en.note || '', warmups: warmN, mode: m, target: en.target || null, sets: rows, value, e1rm,
       volume: m === 'reps' ? entryVolume(warm.length ? [...warm, ...rows] : rows, en) : null,
     })
   })

@@ -97,7 +97,7 @@ describe('workout detail', () => {
     act(() => { row.querySelector('.tap-main').click() })
     expect(useUI.getState().sheets).toHaveLength(2)
     const history = mountTopSheet()
-    expect(history.textContent).toContain('Exercise history')
+    expect(history.textContent).toContain('Your records')
     expect(history.textContent).toContain('60×5')
   })
 
@@ -111,7 +111,7 @@ describe('workout detail', () => {
     expect(useUI.getState().sheets).toHaveLength(2)
     const detail = mountTopSheet()
     expect(detail.querySelector('.exdetail-name')).not.toBeNull()
-    expect(detail.textContent).not.toContain('Exercise history')
+    expect(detail.textContent).not.toContain('Your records')
   })
 
   it('copies the workout as text, with the note as it stands in the box', async () => {
